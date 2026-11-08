@@ -1,8 +1,9 @@
+import {diningState,DINING_UPGRADES,diningUpgrade,diningGoal,interactDining,updateDining,validDining} from './dining.js';
 import {ownerState,updateOwner,reservedBread,deliverTakeaway,PICKUP,validOwner} from './owner.js';
 import {recordMotion,travelDelta} from './motion.js';
 import { NEW_UPGRADES, QUESTS, dayTwo, updateDayTwo, available } from './growth.js';
 // Deterministic simulation. No DOM, rendering, wall-clock time or third-party SDKs.
-import {WORLD,STATIONS,SOLIDS} from './world-layout.js';
+import {WORLD,STATIONS,SOLIDS,activeSolids,worldHeight} from './world-layout.js';
 export {WORLD,STATIONS,SOLIDS} from './world-layout.js';
 export const UPGRADES = [
   { id: 'oven', cost: 60, icon: '♨', name: 'Bếp đôi rực lửa', description: 'Nấu nhanh hơn 40% · Thêm bánh mì đặc biệt 18 xu.' },
@@ -11,13 +12,13 @@ export const UPGRADES = [
   { id: 'capacity', cost: 75, icon: '▣', name: 'Xe đẩy & kệ rộng', description: 'Mang 7 món · Quầy chứa 18 món · Có xe đẩy thật.' },
   { id: 'efficiency', cost: 100, icon: '⚡', name: 'Đôi giày nhanh nhẹn', description: 'Linh đi nhanh hơn 45%, mang 5 món thay vì 3.', requires: 'worker' },
 ];
-UPGRADES.push(...NEW_UPGRADES);
+UPGRADES.push(...NEW_UPGRADES,...DINING_UPGRADES);
 export const PRICE = { banh: 12, special: 18, tea: 10, pho: 28 };
 export const emptyBag = () => ({ raw: 0, banh: 0, special: 0, tea: 0, rawPho: 0, pho: 0, ice: 0 });
 export const count = bag => Object.values(bag).reduce((a, b) => a + b, 0);
 export function freshState() {
   return {
-    version: 2, owner: ownerState(), day: 1, day2: dayTwo(), rng: 20261107, started: false, elapsed: 0, money: 0, revenue: 0, sold: 0,
+    version: 3, dining: diningState(), owner: ownerState(), day: 1, day2: dayTwo(), rng: 20261107, started: false, elapsed: 0, money: 0, revenue: 0, sold: 0,
     upgrades: {}, player: { x: 255, y: 430, face: 1, step: 0, moving: false, bag: emptyBag(), action: 0 },
     worker: null, worker2: null, phoSupply: 16, phoSupplyTimer: 0, phoKitchen: { input: 0, output: [], job: null, serial: 0 }, phoTill: 0, teaAutoTimer: 0, supply: 20, supplyTimer: 0,
     kitchen: { input: 0, output: [], job: null, serial: 0 }, stock: { banh: 0, special: 0, tea: 0, pho: 0 },
@@ -28,8 +29,8 @@ export function freshState() {
 }
 export function random(s) { s.rng = (s.rng * 1664525 + 1013904223) >>> 0; return s.rng / 4294967296; }
 export function blocked(x, y, radius = 13, state = null) {
-  if (x < 23 || x > 577 || y < 175 || y > (state && !state.upgrades.pho ? 848 : 1578)) return true;
-  return SOLIDS.some(r => {
+  if (x < 23 || x > 577 || y < 175 || y > (state ? worldHeight(state)-82 : WORLD.h-82)) return true;
+  return activeSolids(state).some(r => {
     const dx = x - Math.max(r.x, Math.min(x, r.x + r.w));
     const dy = y - Math.max(r.y, Math.min(y, r.y + r.h));
     return dx * dx + dy * dy < radius * radius;
@@ -46,7 +47,7 @@ export function move(actor, dx, dy, state = null, dt = 1/60) {
 }
 // Small grid A* with obstacle inflation; worker and keyboard tests share physical movement.
 export function findPath(from, to, state = null) {
-  const cell = 20, cols = 30, rows = 83;
+  const cell = 20, cols = 30, rows = Math.ceil(WORLD.h/20);
   const start = [Math.floor(from.x / cell), Math.floor(from.y / cell)];
   const end = [Math.floor(to.x / cell), Math.floor(to.y / cell)];
   const key = (x, y) => y * cols + x;
@@ -70,15 +71,28 @@ export function findPath(from, to, state = null) {
   }
   return [];
 }
+export function walkTo(s,actor,dest,speed,dt){
+  const key=`${dest.x},${dest.y},${s.dining.navVersion}`;
+  if(actor.navKey!==key){actor.path=[];actor.navKey=key;}
+  if(Math.hypot(actor.x-dest.x,actor.y-dest.y)<4){actor.moving=false;return true;}
+  if(!actor.path?.length)actor.path=findPath(actor,dest,s);
+  while(actor.path.length&&Math.hypot(actor.x-actor.path[0].x,actor.y-actor.path[0].y)<3)actor.path.shift();
+  if(actor.path.length){const p=actor.path[0],d=travelDelta(p.x-actor.x,p.y-actor.y,speed*dt,true);move(actor,d.x,d.y,s,dt);}
+  return Math.hypot(actor.x-dest.x,actor.y-dest.y)<4;
+}
 export function buy(s, id, emit = () => {}) {
   const u = UPGRADES.find(v => v.id === id);
   if (!u || !available(s,u)) return false;
+  const candidate={...s,upgrades:{...s.upgrades,[id]:true}},actors=[s.player,s.worker,s.worker2,s.dining.waiter,...s.dining.guests].filter(Boolean);
+  if(actors.some(a=>!blocked(a.x,a.y,13,s)&&blocked(a.x,a.y,13,candidate))){emit('dining',{text:'Chỗ đặt bàn đang có người · Bước ra lối trống rồi mở lại nhé.'});return false;}
   s.money -= u.cost; s.upgrades[id] = true;
   if (id === 'worker') s.worker = { x: 300, y: 760, face: 1, step: 0, bag: emptyBag(), action: 0, target: 'supply', path: [] };
   if (id === 'worker2') s.worker2 = { x: 320, y: 1470, face: 1, step: 0, bag: emptyBag(), action: 0, target: 'phoSupply', path: [], name: 'AN' };
+  diningUpgrade(s,id,emptyBag);
   emit('upgrade', { id, text: u.name }); return true;
 }
 export function goal(s) {
+  if(s.day>=3)return diningGoal(s);
   if(s.day>=2){
     if(s.day2.completed)return {text:'Phố đang lớn · Giữ quán đông vui!',value:s.revenue,max:Math.max(3000,Math.ceil((s.revenue+1)/1000)*1000),chapter:'TỰ DO PHÁT TRIỂN'};
     if(!s.upgrades.pho)return {text:'Mở sân phở bò · 300 xu',value:s.money,max:300,station:'shop'};
@@ -214,6 +228,7 @@ export function tick(s, dt, input = { x: 0, y: 0 }, emit = () => {}) {
   s.player.moving = false;
   if (len > .05){const d=travelDelta(input.x,input.y,155*Math.min(1,len)*dt);move(s.player,d.x,d.y,s,dt);}
   interact(s, s.player, dt, emit);
+  interactDining(s,s.player,dt,emit);
   s.supplyTimer += dt;
   if (s.supplyTimer >= 12) { s.supplyTimer -= 12; s.supply = Math.min(20, s.supply + 12); }
   const k = s.kitchen;
@@ -234,9 +249,10 @@ export function tick(s, dt, input = { x: 0, y: 0 }, emit = () => {}) {
   }
   if(s.upgrades.teaAuto){s.teaAutoTimer+=dt;if(s.teaAutoTimer>=3&&s.stock.tea<(s.upgrades.capacity?18:10)){s.teaAutoTimer=0;s.stock.tea++;s.stats.brewed++;s.stats.stocked++;emit('tea',{x:450,y:540});}}
   updateDayTwo(s,dt,emit);updateOwner(s,dt,emit);
+  updateDining(s,dt,emit,{random:()=>random(s),walk:(a,dest,speed)=>walkTo(s,a,dest,speed,dt)});
 
 }
-export function encode(s){return JSON.stringify({schema:2,state:s});}
+export function encode(s){return JSON.stringify({schema:3,state:s});}
 const integer=n=>Number.isSafeInteger(n)&&n>=0&&n<=1e9;
 const finite=n=>Number.isFinite(n);
 function validBase(s,legacy){
@@ -263,7 +279,7 @@ export function migrateV1(s){
   if(s?.version!==1||!validBase(s,true))return null;
   const base=freshState();
   const upgradeActor=a=>a?{...a,bag:{...emptyBag(),...a.bag},path:[]}:null;
-  return {...base,...s,version:2,day:s.finished?2:1,day2:dayTwo(s.elapsed,s.revenue),
+  return {...base,...s,version:3,day:s.finished?2:1,day2:dayTwo(s.elapsed,s.revenue),
     player:upgradeActor(s.player),worker:upgradeActor(s.worker),worker2:null,
     stock:{...base.stock,...s.stock},stats:{...base.stats,...s.stats},
     // M1 exit target was inside its removal boundary. Remove only those already offscreen.
@@ -274,8 +290,9 @@ export function decode(json){
   try{
     const v=JSON.parse(json);let s;
     if(v.schema===1&&v.state?.version===1)s=migrateV1(v.state);
-    else if(v.schema===2&&v.state?.version===2){s=v.state;if(!Object.hasOwn(s,'owner'))s.owner=ownerState();for(const a of [s.player,s.worker,s.worker2].filter(Boolean))if(a.bag&&!Object.hasOwn(a.bag,'ice'))a.bag.ice=0;}else return null;
-    if(!s||!validOwner(s.owner)||!validBase(s,false)||![1,2].includes(s.day)||!s.day2||!s.day2.event)return null;
+    else if(v.schema===2&&v.state?.version===2){s=v.state;if(!Object.hasOwn(s,'owner'))s.owner=ownerState();for(const a of [s.player,s.worker,s.worker2].filter(Boolean))if(a.bag&&!Object.hasOwn(a.bag,'ice'))a.bag.ice=0;s.dining=diningState();s.version=3;}
+    else if(v.schema===3&&v.state?.version===3)s=v.state;else return null;
+    if(!s||!validOwner(s.owner)||!validBase(s,false)||!integer(s.day)||s.day<1||!validDining(s.dining,s,blocked)||!s.day2||!s.day2.event)return null;
     if(![s.phoSupply,s.phoTill].every(integer)||![s.phoSupplyTimer,s.teaAutoTimer,s.day2.startedAt,s.day2.revenueStart].every(finite))return null;
     if(![s.day2.completed,s.day2.summarySeen].every(v=>typeof v==='boolean'))return null;
     if(!Array.isArray(s.day2.claimed)||new Set(s.day2.claimed).size!==s.day2.claimed.length||!s.day2.claimed.every(id=>QUESTS.some(q=>q.id===id)))return null;
@@ -285,7 +302,7 @@ export function decode(json){
     if(s.upgrades.worker&&!s.worker||s.upgrades.worker2&&!s.worker2)return null;
     s.customers=s.customers.filter(c=>!(c.phase==='leave'&&c.x>=660));
     if(s.customers.length>MAX_CUSTOMERS)return null;
-    for(const w of [s.worker,s.worker2].filter(Boolean))w.path=[];
+    for(const w of [s.worker,s.worker2,s.dining.waiter,...s.dining.guests].filter(Boolean)){w.path=[];delete w.navKey;}
     return s;
   }catch{return null;}
 }

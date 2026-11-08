@@ -28,5 +28,5 @@ export function claimQuest(s,id,emit=()=>{}){
   s.day2.claimed.push(id);s.money+=q.reward;s.stats.rewards+=q.reward;emit('reward',{text:`${q.title} · +${q.reward} xu`,amount:q.reward});
   if(s.day2.claimed.length===QUESTS.length&&!s.day2.completed){s.day2.completed=true;emit('day2Complete',{});}return true;
 }
-export function available(s,u){return !s.upgrades[u.id]&&s.money>=u.cost&&(!u.requires||s.upgrades[u.requires])&&(!u.day||s.day>=u.day);}
-export function lockReason(s,u){if(u.day&&s.day<u.day)return 'Ngày 02';if(u.requires&&!s.upgrades[u.requires])return u.requires==='pho'?'Cần sân phở':u.requires==='tea'?'Cần trà tắc':'Cần Linh';return null;}
+export function available(s,u){return !s.upgrades[u.id]&&s.money>=u.cost&&(!u.requires||s.upgrades[u.requires])&&(!u.day||s.day>=u.day)&&(!u.condition||u.condition(s));}
+export function lockReason(s,u){if(u.day&&s.day<u.day)return u.day===3?'Ngày 03':'Ngày 02';if(u.requires&&!s.upgrades[u.requires])return ({pho:'Cần sân phở',tea:'Cần trà tắc',dining:'Cần sân ăn',waiter:'Cần Mai'})[u.requires]||'Cần Linh';if(u.condition&&!u.condition(s))return u.lock;return null;}
