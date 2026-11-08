@@ -1,4 +1,4 @@
-import {ActorAnimator,constrainFoot} from './animation.js';
+import {ActorAnimator,constrainFoot,RIG} from './animation.js';
 import { WORLD, STATIONS, SOLIDS, count, goal } from './model.js';
 const C = { ink: '#284f43', teal: '#337b69', dark: '#1c5144', cream: '#fff2cf', gold: '#efba58', wood: '#b97b46' };
 let ctx,animation,frameDelta=0;
@@ -103,42 +103,45 @@ function actor(a,t,isWorker=false,customer=false,cart=false) {
   const shoe=isWorker&&cart?'#d6bd7c':'#514b3b';
   for(const [side,rawFoot] of [[-1,pose.left],[1,pose.right]].sort((a,b)=>a[1].y-b[1].y)){
     const f=constrainFoot(a,rawFoot,SOLIDS);
-    line(side*7,-15,f.kneeX,f.kneeY,'#314d4b',7);line(f.kneeX,f.kneeY,f.x,f.y-1,'#314d4b',7);
-    ctx.save();ctx.translate(f.x,f.y);ctx.rotate(pose.dx*.18);rr(-6,-3,13,6,3,shoe);line(-3,-2,3,-2,'#ffffff20',1);ctx.restore();
+    line(f.hipX,f.hipY,f.kneeX,f.kneeY,'#314d4b',6.5);line(f.kneeX,f.kneeY,f.x,f.y,'#314d4b',6);
+    ctx.save();ctx.translate(f.x,f.y);ctx.rotate(pose.dx*.18);rr(-5.5,-2,11,4,2,shoe);line(-3,-1,3,-1,'#ffffff20',1);ctx.restore();
   }
   ctx.translate(pose.lean,pose.bob);
-  const carrying=a.bag&&count(a.bag)>0||a.holding;
+  ctx.save();ctx.scale(pose.bodyWidth,1);
+  const carrying=a.bag&&count(a.bag)>0||a.holding||a.parcel;
   function arm(side){
-    const sx=side*12,sy=-31,angle=carrying?side*.48:-side*pose.arm;
+    const sx=side*11,sy=RIG.shoulderY+3;
+    if(carrying&&(!cart||side>0)){const hx=(cart?14:side*17)/pose.bodyWidth,hy=-33;line(sx,sy,side*15,-40,shirt,7);line(side*15,-40,hx,hy,shirt,6);el(hx,hy,3.8,4,'#e9b68b');return;}
+    const angle=-side*pose.arm;
     ctx.save();ctx.translate(sx,sy);ctx.rotate(angle);line(0,0,side*1,10,shirt,7);line(side*1,10,0,19-pose.reach,shirt,6);el(0,20-pose.reach,3.8,4,'#e9b68b');ctx.restore();
   }
   arm(-1);arm(1);
-  rr(-12,-34,24,25,7,shirt);if(!customer){rr(-9,-26,18,17,3,pose.back?'#c9c6a2':'#f4dc9b');line(-6,-33,-7,-24,'#f4dc9b',2);line(6,-33,7,-24,'#f4dc9b',2);rr(-5,-19,10,5,2,'#bda873');}
-  ctx.save();ctx.translate(pose.dx*2,-45);el(0,0,14,15,'#e9b78e');el(-12,2,3,4,'#dea478');el(12,2,3,4,'#dea478');
+  rr(-11,RIG.shoulderY,22,23,7,shirt);if(!customer){rr(-8,-43,16,15,3,pose.back?'#c9c6a2':'#f4dc9b');line(-6,-50,-6,-41,'#f4dc9b',2);line(6,-50,6,-41,'#f4dc9b',2);rr(-5,-37,10,5,2,'#bda873');}
+  ctx.save();ctx.translate(pose.dx*1.8,RIG.headY);el(0,0,13,14,'#e9b78e');el(-11,2,3,4,'#dea478');el(11,2,3,4,'#dea478');
   el(0,-7,14,10,customer&&a.look%2?'#665442':'#3e4032');
   if(customer&&a.look>=6){rr(-11,-1,9,6,3,null,'#665d45',1.2);rr(1,-1,9,6,3,null,'#665d45',1.2);line(-2,1,1,1,'#665d45',1);}
   if(customer&&a.phase==='wait'&&a.patience<15){line(-7,-4,-2,-2,'#8a563e',1.5);line(2,-2,7,-4,'#8a563e',1.5);}
   if(pose.back){el(0,-1,13,11,'#3e4032');}else{el(pose.dx*3-5,1,1.4,1.9,'#34453b');el(pose.dx*3+4,1,1.4,1.9,'#34453b');el(pose.dx*3+6,6,3,1.7,'#da967b');line(pose.dx*3-1,7,pose.dx*3+3,7,'#ab6a50',1.2);}
   if(!customer){rr(-15,-13,30,7,3,isWorker?(a.name==='AN'?'#567d89':'#d27252'):'#e8d5a8');if(isWorker){ctx.beginPath();ctx.moveTo(-12,-11);ctx.lineTo(-23,-16);ctx.lineTo(-18,-5);ctx.fillStyle=a.name==='AN'?'#567d89':'#d27252';ctx.fill();}else{rr(-10,-20,21,12,5,'#fff0c9');el(1,-22,12,6,'#fff1d4');}}
   if(a.courier){rr(-16,-13,32,12,7,'#467c77');line(-13,-3,13,-3,'#d3dfc2',2);}
-  ctx.restore();
-  if(a.courier&&a.parcel){rr(-16,-25,32,24,4,'#b78950','#86643f');text('PHỐ',0,-14,9,'#f3e5b9');}
+  ctx.restore();ctx.restore();
+  if(a.courier&&a.parcel){rr(-16,-39,32,24,4,'#b78950','#86643f');text('PHỐ',0,-28,9,'#f3e5b9');}
   if(a.bag&&count(a.bag)>0){
     const items=[];for(const k of ['raw','banh','special','tea','rawPho','pho','ice'])for(let i=0;i<Math.min(a.bag[k],7);i++)items.push(k);
-    if(cart){line(14,-19,31,-10,'#677766',3);el(30,2,5,5,'#4a5d51');el(58,2,5,5,'#4a5d51');rr(20,-24,48,25,5,'#bb864a','#7c6745',2);for(let i=0;i<items.length;i++)food(items[i],33+(i%2)*21,-19-Math.floor(i/2)*8,.48);}
-    else{rr(-18,-23,36,14,4,'#b47b48');for(let i=0;i<items.length;i++)food(items[i],(i%2)*17-8,-25-Math.floor(i/2)*9,.52);el(-18,-19,4,4,'#e9b78e');el(18,-19,4,4,'#e9b78e');}
+    if(cart){line(14,-33,31,-14,'#677766',3);el(30,2,5,5,'#4a5d51');el(58,2,5,5,'#4a5d51');rr(20,-24,48,25,5,'#bb864a','#7c6745',2);for(let i=0;i<items.length;i++)food(items[i],33+(i%2)*21,-19-Math.floor(i/2)*8,.48);}
+    else{rr(-18,-38,36,16,4,'#b47b48');for(let i=0;i<items.length;i++)food(items[i],(i%2)*17-8,-40-Math.floor(i/2)*9,.52);el(-18,-34,4,4,'#e9b78e');el(18,-34,4,4,'#e9b78e');}
   }
-  if(a.holding)food(a.holding,a.face*13,-24,.65);
-  if(isWorker){badge(a.name==='AN'?'AN':'LINH',0,-76,43,a.name==='AN'?'#d4e6e4':'#fae2c4');if(a.moving&&cart)text('ϟ',20,0,15,'#e0b542');}
+  if(a.holding)food(a.holding,a.face*13,-38,.65);
+  if(isWorker){badge(a.name==='AN'?'AN':'LINH',0,-99,43,a.name==='AN'?'#d4e6e4':'#fae2c4');if(a.moving&&cart)text('ϟ',20,0,15,'#e0b542');}
   if(!customer&&!isWorker){el(0,8,4,2,'#f0bd57');}
   ctx.restore();
 }
 function customerBubble(c,t) {
-  if(c.phase==='leave') {text(c.angry?'…':'♥',c.x,c.y-76,16,c.angry?'#a07a5f':'#b96750');return;}
-  rr(c.x-17,c.y-91,34,30,10,'#fff8df','#c1bc9a');
-  ctx.beginPath();ctx.moveTo(c.x-3,c.y-62);ctx.lineTo(c.x,c.y-56);ctx.lineTo(c.x+5,c.y-62);ctx.fillStyle='#fff8df';ctx.fill();
-  food(c.type,c.x,c.y-74,.48);
-  if(c.phase==='wait'){rr(c.x-12,c.y-58,24,3,2,'#ded7b9');rr(c.x-12,c.y-58,24*Math.max(0,c.patience/48),3,2,c.patience<15?'#c68155':'#7ca17b');}
+  if(c.phase==='leave') {text(c.angry?'…':'♥',c.x,c.y-96,16,c.angry?'#a07a5f':'#b96750');return;}
+  rr(c.x-17,c.y-114,34,28,10,'#fff8df','#c1bc9a');
+  ctx.beginPath();ctx.moveTo(c.x-3,c.y-87);ctx.lineTo(c.x,c.y-83);ctx.lineTo(c.x+5,c.y-87);ctx.fillStyle='#fff8df';ctx.fill();
+  food(c.type,c.x,c.y-100,.48);
+  if(c.phase==='wait'){rr(c.x-12,c.y-85,24,3,2,'#ded7b9');rr(c.x-12,c.y-85,24*Math.max(0,c.patience/48),3,2,c.patience<15?'#c68155':'#7ca17b');}
 }
 function background(s,t) {
   ctx.fillStyle='#e2d8bd';ctx.fillRect(0,0,WORLD.w,WORLD.h);
@@ -226,7 +229,7 @@ export class Renderer {
     let highlighted=g.station;const q=s.owner.takeaway,bag=s.player.bag;if(q.active)highlighted=bag.banh+bag.special<q.recipe.bread?'sale':bag.tea<q.recipe.tea?'tea':bag.pho<q.recipe.pho?'phoSale':'pickup';if(s.owner.ice.active)highlighted=bag.ice?'tea':'supply';
     for(const [name,p] of Object.entries(STATIONS)){if(name==='pickup'&&!q.active||name==='tea'&&!s.upgrades.tea||name.startsWith('pho')&&!s.upgrades.pho)continue;ring(p.x,p.y,near(name),name==='pickup'?'▤':name.toLowerCase().includes('supply')?'↓':name.toLowerCase().includes('kitchen')?'♨':name.toLowerCase().includes('sale')?'↑':'＋',s.elapsed,highlighted===name);}
     const draws=[{y:789,draw:()=>plasticChair(44,774)},{y:324,draw:()=>supply(s,s.elapsed)},{y:324,draw:()=>kitchen(s,s.elapsed)},{y:631,draw:()=>sale(s,s.elapsed)},{y:631,draw:()=>tea(s,s.elapsed)},...s.customers.map(c=>({y:c.y,draw:()=>actor(c,s.elapsed,false,true)})),{y:s.player.y,draw:()=>actor(s.player,s.elapsed,false,false,s.upgrades.capacity)}];
-    if(s.owner.courier)draws.push({y:s.owner.courier.y,draw:()=>{actor(s.owner.courier,s.elapsed,false,true,false);if(s.owner.takeaway.active)badge('MANG ĐI',s.owner.courier.x,s.owner.courier.y-80,76,'#eadab6');}});
+    if(s.owner.courier)draws.push({y:s.owner.courier.y,draw:()=>{actor(s.owner.courier,s.elapsed,false,true,false);if(s.owner.takeaway.active)badge('MANG ĐI',s.owner.courier.x,s.owner.courier.y-103,76,'#eadab6');}});
     if(s.worker)draws.push({y:s.worker.y,draw:()=>actor(s.worker,s.elapsed,true,false,s.upgrades.efficiency)});
     if(s.upgrades.pho)draws.push({y:1054,draw:()=>phoSupply(s,s.elapsed)},{y:1054,draw:()=>phoKitchen(s,s.elapsed)},{y:1361,draw:()=>phoSale(s,s.elapsed)});
     if(s.worker2)draws.push({y:s.worker2.y,draw:()=>actor(s.worker2,s.elapsed,true,false,false)});

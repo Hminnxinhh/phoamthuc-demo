@@ -1,8 +1,8 @@
 {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "milestone": 2,
   "baseCommit": "51ad84cbee48ef3e590f8224b9d023ac632e5a40",
-  "contentSha256": "16b2495690a0c231cbf093c6b095e2db8e74ab13b1b744be5a20c1c07686940b",
+  "contentSha256": "9e3dc4be02d8d10fead27ecfc559a95f95c59928b81df6ecc1fb070f3a9123a3",
   "runtimeFiles": [
     "icon.svg",
     "index.html",

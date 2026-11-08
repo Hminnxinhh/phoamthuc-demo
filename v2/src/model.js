@@ -1,5 +1,5 @@
 import {ownerState,updateOwner,reservedBread,deliverTakeaway,PICKUP,validOwner} from './owner.js';
-import {STEP_PER_UNIT} from './animation.js';
+import {recordMotion,travelDelta} from './animation.js';
 import { NEW_UPGRADES, QUESTS, dayTwo, updateDayTwo, available } from './growth.js';
 // Deterministic simulation. No DOM, rendering, wall-clock time or third-party SDKs.
 export const WORLD = { w: 600, h: 1660 };
@@ -56,20 +56,14 @@ export function blocked(x, y, radius = 13, state = null) {
     return dx * dx + dy * dy < radius * radius;
   });
 }
-export function move(actor, dx, dy, state = null) {
+export function move(actor, dx, dy, state = null, dt = 1/60) {
   const parts = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 5));
   const ox = actor.x, oy = actor.y;
   for (let i = 0; i < parts; i++) {
     if (!blocked(actor.x + dx / parts, actor.y, 13, state)) actor.x += dx / parts;
     if (!blocked(actor.x, actor.y + dy / parts, 13, state)) actor.y += dy / parts;
   }
-  actor.moving = Math.hypot(actor.x - ox, actor.y - oy) > .05;
-  if (actor.moving) {
-    const distance=Math.hypot(actor.x-ox,actor.y-oy);
-    actor.step+=distance*STEP_PER_UNIT;actor.dirX=(actor.x-ox)/distance;actor.dirY=(actor.y-oy)/distance;
-    if (Math.abs(dx) > .1) actor.face = dx < 0 ? -1 : 1;
-    actor.back = dy < -Math.abs(dx) * .5;
-  }
+  recordMotion(actor,actor.x-ox,actor.y-oy,dt);
 }
 // Small grid A* with obstacle inflation; worker and keyboard tests share physical movement.
 export function findPath(from, to, state = null) {
@@ -186,8 +180,8 @@ function updateWorker(s, dt, emit, isPho = false) {
     if (!w.path?.length) w.path = findPath(w, dest, s);
     if (w.path.length) {
       const p = w.path[0], dx = p.x - w.x, dy = p.y - w.y, len = Math.hypot(dx, dy);
-      const distance = Math.min(len, (isPho?115:s.upgrades.efficiency?155:107) * dt);
-      if (len > .1) move(w, dx / len * distance, dy / len * distance, s);
+      const d=travelDelta(dx,dy,(isPho?115:s.upgrades.efficiency?155:107)*dt,true);
+      if (len > .1) move(w,d.x,d.y,s,dt);
       if (len < 5) w.path.shift();
     }
   } else w.moving = false;
@@ -215,7 +209,7 @@ function updateCustomers(s,dt,emit){
     if(c.phase==='enter'&&c.x<tx-5)ty=430+offset-Math.max(0,idx)*8;
     const dx=tx-c.x,dy=ty-c.y,d=Math.hypot(dx,dy),speed=c.phase==='leave'?96:72;
     c.moving=d>2;
-    if(d>2){c.x+=dx/d*Math.min(d,dt*speed);c.y+=dy/d*Math.min(d,dt*speed);c.step+=Math.min(d,dt*speed)*STEP_PER_UNIT;c.dirX=dx/d;c.dirY=dy/d;c.face=dx<0?-1:1;}
+    if(d>2){const delta=travelDelta(dx,dy,speed*dt,true);c.x+=delta.x;c.y+=delta.y;recordMotion(c,delta.x,delta.y,dt);}
     else if(c.phase!=='leave'){
       c.phase='wait';c.wait+=dt;c.patience-=dt;
       if(idx===0){let kind=c.type;
@@ -239,7 +233,7 @@ export function tick(s, dt, input = { x: 0, y: 0 }, emit = () => {}) {
   dt = Math.min(dt, .1); s.elapsed += dt;
   const len = Math.hypot(input.x, input.y);
   s.player.moving = false;
-  if (len > .05) move(s.player, input.x / Math.max(1, len) * 155 * dt, input.y / Math.max(1, len) * 155 * dt, s);
+  if (len > .05){const d=travelDelta(input.x,input.y,155*Math.min(1,len)*dt);move(s.player,d.x,d.y,s,dt);}
   interact(s, s.player, dt, emit);
   s.supplyTimer += dt;
   if (s.supplyTimer >= 12) { s.supplyTimer -= 12; s.supply = Math.min(20, s.supply + 12); }

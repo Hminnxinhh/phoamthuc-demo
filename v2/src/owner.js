@@ -1,3 +1,4 @@
+import {recordMotion,travelDelta} from './animation.js';
 // Optional owner's work. Automation stays intact; no penalties for ignoring jobs.
 export const PICKUP = {x:450,y:770,label:'Giao đơn mang đi'};
 export function ownerState(){return {
@@ -26,7 +27,7 @@ export function updateOwner(s,dt,emit){
   ice.restock+=dt;if(ice.restock>=90){ice.restock-=90;ice.stock=Math.min(2,ice.stock+1);}
   if(q.active){q.left=Math.max(0,q.left-dt);if(q.left===0){q.active=false;q.missed++;q.cooldown=30;if(s.owner.courier)s.owner.courier.phase='leave';emit('owner',{text:'Khách đã đi. Món vẫn trên tay; có thể bày lại, không mất tiền.'});}}
   const c=s.owner.courier;
-  if(c){const tx=c.phase==='leave'?680:510,ty=812,dx=tx-c.x,dy=ty-c.y,d=Math.hypot(dx,dy),travel=Math.min(d,90*dt);c.moving=d>1;if(d>1){c.x+=dx/d*travel;c.y+=dy/d*travel;c.dirX=dx/d;c.dirY=dy/d;c.step+=travel*Math.PI*2/88;c.face=dx<0?-1:1;}else if(c.phase==='arrive')c.phase='wait';if(c.x>660)s.owner.courier=null;}
+  if(c){const tx=c.phase==='leave'?680:510,ty=812,dx=tx-c.x,dy=ty-c.y,d=Math.hypot(dx,dy);c.moving=d>1;if(d>1){const delta=travelDelta(dx,dy,90*dt,true);c.x+=delta.x;c.y+=delta.y;recordMotion(c,delta.x,delta.y,dt);}else if(c.phase==='arrive')c.phase='wait';if(c.x>660)s.owner.courier=null;}
 }
 export function deliverTakeaway(s,emit=()=>{}){
   const q=s.owner.takeaway;if(!q.active||!hasParcel(s)||!s.owner.courier||Math.abs(s.owner.courier.x-510)>5)return false;
