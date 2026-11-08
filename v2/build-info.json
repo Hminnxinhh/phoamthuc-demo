@@ -1,0 +1,20 @@
+{
+  "version": "0.2.1",
+  "milestone": 2,
+  "baseCommit": "51ad84cbee48ef3e590f8224b9d023ac632e5a40",
+  "contentSha256": "16b2495690a0c231cbf093c6b095e2db8e74ab13b1b744be5a20c1c07686940b",
+  "runtimeFiles": [
+    "icon.svg",
+    "index.html",
+    "src/animation.js",
+    "src/controls.js",
+    "src/growth.js",
+    "src/main.js",
+    "src/model.js",
+    "src/owner.js",
+    "src/platform.js",
+    "src/render.js",
+    "src/save.js",
+    "src/style.css"
+  ]
+}
