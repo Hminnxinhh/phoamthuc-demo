@@ -1,3 +1,4 @@
+import {CHARACTERS,TRACKS,tracksFor,nextTraining,train,carryCapacity,speedFactor,careerGoals,claimCareer,startOffice,startWelcome,officeRecipe,officeRemaining,welcomeBoost} from './career.js';
 import {GUEST_TYPES,activeTables,needs,selectTable,assignTable,claimDiningQuest,startDiningEvent} from './dining.js';
 import {t,number,loadLanguage,setLanguage,getLanguage,localize,staticCopy} from './locale.js';
 import {missionBoard} from './mission-view.js';
@@ -15,16 +16,16 @@ const loaded=loadProgress(storage);
 let state=loaded.state||freshState(),saveBlocked=!!loaded.error,paused=false,currentOverlay=null,shopTab=state.day>=3?'dining':state.day===2?'growth':'home';
 let lastTime=performance.now(),saveTimer=0,hudTimer=0,toastTimer,pointer=null,soundEnabled=false,audio,manualMode=false;
 const renderer=new Renderer($('game')),keys=new Set(),input={x:0,y:0};
-let previousGoal=goal(state).text,missionTab='goals',trackedQuest=null,toastMessage='',importMessage='',saveLabel='Tự lưu trên thiết bị · Mốc 3B';
+let previousGoal=goal(state).text,missionTab='goals',trackedQuest=null,teamRole='owner',toastMessage='',importMessage='',saveLabel='Tự lưu trên thiết bị · 0.5.0';
 function toast(message){toastMessage=message;$('toast').textContent=t(message);$('toast').classList.add('visible');$('station-hint').hidden=true;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{$('toast').classList.remove('visible');$('station-hint').hidden=false;},3300);}
 function tone(freq=600,length=.08){if(!soundEnabled||!audio)return;try{const o=audio.createOscillator(),g=audio.createGain();o.type='sine';o.frequency.setValueAtTime(freq,audio.currentTime);o.frequency.exponentialRampToValueAtTime(freq*.7,audio.currentTime+length);g.gain.setValueAtTime(.045,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+length);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+length);}catch{/* Optional audio. */}}
 function setSaveStatus(message){saveLabel=message;$('save-status').textContent=t(message);}
-function save(){if(saveBlocked)return;try{saveProgress(storage,state);setSaveStatus('Đã lưu trên thiết bị · Mốc 3B');}catch{setSaveStatus('Chưa lưu được · Bản cũ được giữ nguyên · Hãy xuất bản lưu');}}
+function save(){if(saveBlocked)return;try{saveProgress(storage,state);setSaveStatus('Đã lưu trên thiết bị · 0.5.0');}catch{setSaveStatus('Chưa lưu được · Bản cũ được giữ nguyên · Hãy xuất bản lưu');}}
 function event(type,e){
   renderer.event(type,e);
   if(type==='money')tone(870,.16);if(type==='pickup')tone(420,.035);
   if(type==='upgrade'){toast(e.id==='worker'?'Linh lo bánh · Bạn có thể nhận đơn mang đi hoặc tiếp đá trong Nhiệm vụ.':`✦ ${e.text} đã sẵn sàng!`);tone(1100,.25);platform.onMilestone(e.id);save();}
-  if(['rush','day','lunchEnd','reward','owner','dining'].includes(type)){toast(e.text);tone(type==='reward'?1080:740,.2);if(type!=='rush')save();}
+  if(['rush','day','lunchEnd','reward','owner','dining','career'].includes(type)){toast(e.text);tone(type==='reward'?1080:740,.2);if(type!=='rush')save();}
   if(type==='day'){shopTab='growth';previousGoal='';}
   if(type==='day2Complete'){state.day2.summarySeen=true;save();showFinish();}
 }
@@ -32,10 +33,12 @@ function clearInput(){keys.clear();pointer=null;input.x=0;input.y=0;}
 function open(id){clearInput();paused=true;currentOverlay=id;$(id).hidden=false;platform.onGameplayStop();if(id==='shop-panel')renderShop();if(id==='missions-panel')renderMissions();}
 function close(){if(currentOverlay)$(currentOverlay).hidden=true;currentOverlay=null;paused=false;lastTime=performance.now();if(state.started)platform.onGameplayStart();$('game').focus({preventScroll:true});}
 function renderShop(){
+  $('tab-team').classList.toggle('active',shopTab==='team');$('tab-team').setAttribute('aria-pressed',String(shopTab==='team'));
   $('tab-dining').classList.toggle('active',shopTab==='dining');$('tab-dining').setAttribute('aria-pressed',String(shopTab==='dining'));
   $('tab-home').classList.toggle('active',shopTab==='home');$('tab-growth').classList.toggle('active',shopTab==='growth');
   $('tab-home').setAttribute('aria-pressed',String(shopTab==='home'));$('tab-growth').setAttribute('aria-pressed',String(shopTab==='growth'));
   $('upgrades').replaceChildren();
+  if(shopTab==='team'){renderTeam();localize($('shop-panel'));return;}
   if(shopTab==='growth'&&state.day<2){const p=document.createElement('p');p.className='section-note';p.textContent='Hoàn tất ngày khai trương để mở phần sân nối liền và đón khách phở Ngày 02. Bạn có thể xem trước các cải tiến ở đây.';$('upgrades').append(p);}
   for(const u of UPGRADES.filter(u=>(u.section==='dining'?'dining':['pho','phoBoiler','worker2','teaAuto'].includes(u.id)?'growth':'home')===shopTab)){
     const row=document.createElement('article');row.className='upgrade';row.innerHTML=`<span class="upgrade-icon">${u.icon}</span><div><h3>${u.name}</h3><p>${u.description}</p></div>`;
@@ -45,14 +48,33 @@ function renderShop(){
   }
   localize($('shop-panel'));
 }
+function renderTeam(){
+ const root=$('upgrades'),tabs=document.createElement('div');tabs.className='team-tabs';
+ for(const who of CHARACTERS){const b=document.createElement('button');b.textContent=t(who.name);b.dataset.character=who.id;b.setAttribute('aria-pressed',String(teamRole===who.id));b.addEventListener('click',()=>{teamRole=who.id;renderShop();});tabs.append(b);}root.append(tabs);
+ const who=CHARACTERS.find(c=>c.id===teamRole),r=state.career.roles[teamRole],heading=document.createElement('p');heading.className='section-note';heading.textContent=t('{name} · {n} kinh nghiệm · 3 bậc mỗi kỹ năng',{name:t(who.name),n:r.xp});root.append(heading);const stat=document.createElement('p');stat.className='sheet-sub';stat.textContent=t('Mang {n} món · Di chuyển +{m}%',{n:carryCapacity(state,teamRole),m:Math.round((speedFactor(state,teamRole)-1)*100)});root.append(stat);
+ for(const key of tracksFor(teamRole)){const n=nextTraining(state,teamRole,key),row=document.createElement('article');row.className='upgrade';const icon=document.createElement('span');icon.className='upgrade-icon';icon.textContent=key==='stride'?'⚡':key==='carry'?'▣':'✧';const copy=document.createElement('div'),h=document.createElement('h3'),p=document.createElement('p');h.textContent=t(TRACKS[key].title)+' · '+n.level+'/3';p.textContent=teamRole==='mai'&&key==='carry'?'Mai bậc 3 sức bê và xe nhanh có thể nhận cả ba bàn.':TRACKS[key].description;copy.append(h,p);const b=document.createElement('button');b.className='primary';b.dataset.train=teamRole+'-'+key;b.disabled=n.max||!n.owned||state.money<n.cost||r.xp<n.xp;b.textContent=n.max?'✓ Tối đa':!n.owned?'Mời về quán trước':r.xp<n.xp?t('Cần {n} kinh nghiệm',{n:n.xp}):t('{n} xu',{n:n.cost});b.addEventListener('click',()=>{if(train(state,teamRole,key,event)){renderShop();save();updateHUD();}});row.append(icon,copy,b);root.append(row);}
+ const note=document.createElement('p');note.className='sheet-sub';note.textContent='Kinh nghiệm đến từ công việc thật. Chủ quán bày món, giao đơn và dọn bàn; nhân viên tự lên kinh nghiệm khi làm việc. Nâng cấp dùng tiền trong game.';root.append(note);
+}
+function renderCareerJobs(root){
+ const intro=document.createElement('p');intro.className='section-note';intro.textContent='Quầy làm theo mẻ vừa đủ. Bạn có thể giao đơn lớn hoặc đi mời đoàn khách để tạo nhịp buôn bán mới.';root.append(intro);
+ const o=state.career.office,w=state.career.welcome;
+ for(const job of [
+ {id:'office',title:'Đơn văn phòng · Hai điểm giao',description:'150 giây · 3 bánh + 4 trà + 2 phở. Văn phòng trước, đầu hẻm sau. Giao từng phần vẫn nhận tiền món; xong cả hai điểm nhận thêm 70–90 xu.',label:o.active?t('Điểm {n}/2 · {m}s',{n:o.stage+1,m:Math.ceil(o.left)}):o.cooldown?t('Nghỉ đơn · {n}s',{n:Math.ceil(o.cooldown)}):'Nhận đơn văn phòng →',disabled:!state.upgrades.pho||!state.upgrades.tea||o.active||o.cooldown>0||state.owner.takeaway.active,action:()=>startOffice(state,event)},
+ {id:'welcome-market',title:'Mời khách chợ phố',description:'Ghé đầu hẻm → văn phòng. Đoàn này chuộng bánh và trà. Sau khi mời đủ hai điểm, phục vụ 28 món trong 70 giây để nhận kinh nghiệm và 40 xu.',label:w.active?'Đang đón đoàn':w.cooldown?t('Nghỉ đoàn · {n}s',{n:Math.ceil(w.cooldown)}):'Đi mời khách chợ →',disabled:state.day<2||w.active||w.cooldown>0,action:()=>startWelcome(state,'market',event)},
+ {id:'welcome-office',title:'Mời khách văn phòng',description:'Cùng hai điểm mời, nhưng đoàn chuộng phở và trà. Chọn theo hàng bạn đã chuẩn bị; quán vẫn hoạt động khi bạn không tham gia.',label:'Đi mời khách văn phòng →',disabled:state.day<2||!state.upgrades.pho||w.active||w.cooldown>0,action:()=>startWelcome(state,'office',event)}
+ ]){const card=document.createElement('article');card.className='lunch-card owner-card';const h=document.createElement('h3'),p=document.createElement('p'),b=document.createElement('button');h.textContent=job.title;p.textContent=job.description;b.id='start-'+job.id;b.className='primary';b.textContent=job.label;b.disabled=job.disabled;b.addEventListener('click',()=>{if(job.action()){close();save();updateHUD();}});card.append(h,p,b);root.append(card);}
+ const book=document.createElement('details');book.className='career-book';const summary=document.createElement('summary');summary.textContent=t('Sổ thành tựu của bạn · {n}/8',{n:state.career.claimed.length});book.append(summary);
+ for(const g of careerGoals(state)){const card=document.createElement('article');card.className='quest';const h=document.createElement('h3'),p=document.createElement('p'),tail=document.createElement('div'),b=document.createElement('button');h.textContent=g.title;p.className='table-detail';p.textContent=g.description;tail.className='table-actions';b.className='primary';b.dataset.careerClaim=g.id;const claimed=state.career.claimed.includes(g.id),ready=g.value()>=g.max;b.disabled=claimed||!ready;b.textContent=claimed?'✓ Đã nhận':ready?'Nhận thưởng':t('{n}/{m} · {p} xu',{n:Math.min(g.max,g.value()),m:g.max,p:g.reward});b.addEventListener('click',()=>{if(claimCareer(state,g.id,event)){renderMissions();save();updateHUD();}});const track=document.createElement('button');track.className='track-button';track.textContent='Theo dõi';track.addEventListener('click',()=>{trackedQuest=g.id;close();updateHUD();});tail.append(b,track);card.append(h,p,tail);book.append(card);}root.insertBefore(book,root.children[1]||null);
+}
 function renderOwnerJobs(){
   const root=$('owner-jobs');root.replaceChildren();
   if(!state.upgrades.worker){const note=document.createElement('p');note.className='section-note';note.textContent='Khi Linh lo bánh, bạn có thể nhận đơn mang đi và tiếp đá cho quầy trà. Đây là việc tùy chọn, không thay công việc tự động của Linh.';root.append(note);localize(root);return;}
+  renderCareerJobs(root);
   const q=state.owner.takeaway,i=state.owner.ice,r=q.active?q.recipe:nextRecipe(state),parts=[];
   if(r.bread)parts.push(t(`${r.bread} bánh`));if(r.tea)parts.push(t(`${r.tea} trà`));if(r.pho)parts.push(t(`${r.pho} phở`));
   const title=document.createElement('p');title.className='chapter-chip';title.textContent='VIỆC CỦA CHỦ QUÁN · TÙY CHỌN';root.append(title);
   for(const job of [
-    {id:'takeaway',title:'Đơn mang đi',text:`${parts.join(' + ')} · 70 giây · Thưởng 36–46 xu. Gom món ở quầy, giao tại túi giấy. Trễ không phạt, hàng vẫn trên tay. Đã giao: ${q.completed}.`,label:q.active?`Đang giao · ${Math.ceil(q.left)}s`:q.cooldown>0?`Khách hẹn lại · ${Math.ceil(q.cooldown)}s`:'Nhận đơn mang đi →',disabled:q.active||q.cooldown>0,action:()=>startTakeaway(state,event)},
+    {id:'takeaway',title:'Đơn mang đi',text:`${parts.join(' + ')} · 70 giây · Thưởng 36–46 xu. Gom món ở quầy, giao tại túi giấy. Trễ không phạt, hàng vẫn trên tay. Đã giao: ${q.completed}.`,label:q.active?`Đang giao · ${Math.ceil(q.left)}s`:q.cooldown>0?`Khách hẹn lại · ${Math.ceil(q.cooldown)}s`:'Nhận đơn mang đi →',disabled:state.career.office.active||q.active||q.cooldown>0,action:()=>startTakeaway(state,event)},
     {id:'ice',title:'Tiếp đá mát lành',text:'Kho rau → Quầy trà. Một thùng đá giúp trà bán 13 xu thay vì 10 trong 50 giây. Không hạn giờ; Linh vẫn lo bánh.',label:!state.upgrades.tea?'Cần quầy trà':i.active?'Đang tiếp đá · Kho rau → Trà':i.cooldown>0?`Nghỉ tay · ${Math.ceil(i.cooldown)}s`:i.stock<=0?'Chờ xe đá ghé kho':'Nhận việc tiếp đá →',disabled:!state.upgrades.tea||i.active||i.cooldown>0||i.stock<=0,action:()=>startIce(state,event)}
   ]){const card=document.createElement('div');card.className='lunch-card owner-card';const h=document.createElement('h3');h.textContent=job.title;const p=document.createElement('p');p.textContent=job.text;const b=document.createElement('button');b.id=`start-${job.id}`;b.className='primary';b.disabled=job.disabled;b.textContent=job.label;b.addEventListener('click',()=>{if(job.action()){close();save();updateHUD();}});card.append(h,p,b);root.append(card);}
  localize(root);
@@ -99,6 +121,7 @@ function renderMissions(){
   const b=document.createElement('button');b.className='primary';b.id='start-lunch';b.disabled=state.day<2||!state.upgrades.pho||e.active||e.cooldown>0;
   b.textContent=!state.upgrades.pho?'Mở sân phở để đón khách':e.active?`Đang đón khách · ${Math.ceil(e.left)}s`:e.cooldown>0?`Chuẩn bị lại · ${Math.ceil(e.cooldown)}s`:'Đón khách bữa trưa →';
   b.addEventListener('click',()=>{if(startLunch(state,event)){close();save();updateHUD();}});card.append(b);$('lunch-card').append(card);
+  if(state.day>=3){const q=careerGoals(state).find(g=>!state.career.claimed.includes(g.id));if(q){const row=document.createElement('article');row.className='quest personal-quest';const chip=document.createElement('p'),h=document.createElement('h3'),p=document.createElement('p'),tail=document.createElement('div');chip.className='chapter-chip';chip.textContent='THÀNH TỰU CỦA CHỦ QUÁN';h.textContent=q.title;p.className='table-detail';p.textContent=t(q.description)+' · '+Math.min(q.max,q.value())+'/'+q.max;tail.className='table-actions';const b=document.createElement('button');b.className='primary';b.textContent=q.value()>=q.max?'Nhận thưởng':'Mở việc chủ quán';b.addEventListener('click',()=>{if(q.value()>=q.max){claimCareer(state,q.id,event);renderMissions();updateHUD();save();}else selectMissionTab('jobs');});const team=document.createElement('button');team.className='track-button';team.textContent='Rèn luyện đội ngũ';team.addEventListener('click',()=>{close();shopTab='team';open('shop-panel');});tail.append(b,team);row.append(chip,h,p,tail);$('quests').append(row);}}
   for(const q of board.cards){
     const row=document.createElement('article');row.className='quest';row.dataset.quest=q.id;
     row.innerHTML=`<div class="quest-head"><span class="quest-icon">${q.icon}</span><div><h3>${q.title}</h3><p>${q.description}</p></div></div><div class="progress"><i style="width:${q.progress*100}%"></i></div><div class="quest-tail"><span>${Math.floor(q.value)}/${q.max} · ✦ ${q.reward} xu</span></div>`;
@@ -120,7 +143,7 @@ function updateHUD(){
   $('goal').textContent=g.text;$('goal-count').textContent=g.max===1?(g.value>=g.max?'✓':'0/1'):`${Math.floor(Math.min(g.value,g.max))}/${g.max}`;$('goal-progress').style.width=`${Math.min(100,g.value/g.max*100)}%`;
   $('chapter').textContent=state.day>=3?t('NGÀY {n} · SÂN ĂN ẤM ÁP',{n:String(state.day).padStart(2,'0')}):state.day===2?(state.day2.completed?'NGÀY 02 · TỰ DO PHÁT TRIỂN':state.day2.event.active?'NGÀY 02 · BỮA TRƯA NHỘN NHỊP':'NGÀY 02 · PHỐ ĐANG LỚN'):state.rushStarted&&state.rushLeft>0?'NGÀY 01 · GIỜ CAO ĐIỂM':'NGÀY 01 · KHAI TRƯƠNG';
   if(previousGoal!==g.text){previousGoal=g.text;if(state.started)toast(`Mục tiêu: ${g.text}`);}
-  const bag=state.player.bag;$('capacity').textContent=`${count(bag)}/${state.upgrades.capacity?7:4}`;
+  const bag=state.player.bag;$('capacity').textContent=`${count(bag)}/${carryCapacity(state)}`;
   const names={raw:'nguyên liệu',banh:'bánh',special:'đặc biệt',tea:'trà',rawPho:'phần phở',pho:'tô phở',ice:'thùng đá'};$('bag').textContent=Object.entries(bag).filter(([,v])=>v).map(([k,v])=>`${v} ${t(names[k])}`).join(' · ')||'Tay trống';
   $('shop-dot').style.display=UPGRADES.some(u=>available(state,u))?'block':'none';
   const lunch=state.day2.event,de=state.dining.event;$('rush').hidden=!(de.active||lunch.active||state.rushStarted&&state.rushLeft>0);
@@ -130,7 +153,7 @@ function updateHUD(){
   jobStatus.textContent=q.active?`▤ ĐƠN MANG ĐI ${parcelCount(state)}/${q.recipe.bread+q.recipe.tea+q.recipe.pho} · ${Math.ceil(q.left)}s`:ice.active?'❄ TIẾP ĐÁ · KHO RAU → TRÀ':`❄ TRÀ MÁT 13 xu · ${Math.ceil(ice.freshLeft)}s`;
   const near=Object.entries(STATIONS).find(([,p])=>Math.hypot(state.player.x-p.x,state.player.y-p.y)<43)?.[0];
   let hint=state.elapsed<9?'Kéo trên sàn để đi · Đứng gần trạm để làm':bag.rawPho?'Mang phần phở tới nồi ở sân mới':bag.pho?'Bày phở ở quầy nâu phía dưới':bag.raw?'Mang nguyên liệu tới bếp bánh mì':bag.banh+bag.special?'Mang bánh đến quầy xanh':state.phoTill>0&&state.player.y>850?'Ghé quầy phở để thu tiền':state.till>0?'Ghé quầy bánh mì hoặc trà để thu tiền':state.upgrades.pho?(state.player.y<850?'↓ Đi xuống sân phở · Chạm mục tiêu để xem nhiệm vụ':'↑ Quán bánh mì ở phía trên · Kéo để đi'):'Lấy nguyên liệu → Bếp → Quầy bán';
-  const full=count(bag)>=(state.upgrades.capacity?7:4);
+  const full=count(bag)>=(carryCapacity(state));
   if(near==='supply')hint=full?'Đầy tay rồi! Mang nguyên liệu tới bếp':bag.banh+bag.special+bag.pho?'Bày món đang mang trước nhé':bag.rawPho?'Nguyên liệu phở cần nồi ở sân dưới':state.supply?'Đang lấy nguyên liệu tươi…':`Giao hàng sau ${Math.ceil(12-state.supplyTimer)}s`;
   if(near==='kitchen')hint=bag.raw?'Đang giao nguyên liệu…':full?'Đầy tay rồi! Mang món ra quầy':state.kitchen.job?'Bếp đang nướng · Bánh chín tự lên tay':state.kitchen.output.length?'Đang lấy bánh nóng…':'Bếp cần thêm nguyên liệu';
   if(near==='sale')hint=bag.banh+bag.special?'Đang bày bánh · Khách tự mua':'Khách tự mua · Ghé đây để thu tiền';
@@ -144,9 +167,12 @@ function updateHUD(){
   if(near==='pickup'&&q.active)hint=parcelCount(state)<q.recipe.bread+q.recipe.tea+q.recipe.pho?'Chưa đủ món · Xem túi hàng bên dưới':'Đang giao đơn cho khách…';
   if(state.upgrades.dining&&state.player.y>1580){
     hint='Chọn bàn trong Nhiệm vụ → Bàn ăn · Ghé xe lấy món';
-    if(near==='service')hint=state.owner.takeaway.active?'Đang có đơn mang đi · Giao xong rồi phục vụ bàn':count(bag)>=(state.upgrades.capacity?7:4)&&bag.raw+bag.rawPho+bag.ice>0?'Giao nguyên liệu trước để có chỗ bê món':'Xe lấy món từ kho quầy thật · Hết món? Bổ sung quầy';
+    if(near==='service')hint=state.owner.takeaway.active?'Đang có đơn mang đi · Giao xong rồi phục vụ bàn':count(bag)>=(carryCapacity(state))&&bag.raw+bag.rawPho+bag.ice>0?'Giao nguyên liệu trước để có chỗ bê món':'Xe lấy món từ kho quầy thật · Hết món? Bổ sung quầy';
     if(near?.startsWith('table')){const tb=state.dining.tables[Number(near.slice(5))];hint=tb.state==='dirty'?'Đang lau bàn · Sắp đón lượt khách mới':tb.state==='waiting'?'Tự giao đúng món trên tay · Thiếu món? Ghé xe phục vụ':tb.state==='eating'?'Khách đang dùng bữa · Có thể lo bàn khác':'Ghé bàn tự thu tiền · Bàn sạch mới đón khách';}
   }
+  const office=state.career.office,welcome=state.career.welcome;
+  if(office.active){const remaining=officeRemaining(state);hint=office.stage===0?'Văn phòng trước · Gom bánh và trà, có thể giao từng phần':'Đầu hẻm sau · Gom phở và trà, có thể giao từng phần';jobStatus.hidden=false;jobStatus.textContent=t('▤ VĂN PHÒNG · {n}/2 · {m}s',{n:office.stage+1,m:Math.ceil(office.left)});}
+  else if(welcome.active){hint=welcome.stage===0?'Mời đoàn · Ghé đầu hẻm, dừng chào khách':welcome.stage===1?'Mời đoàn · Ghé văn phòng, dừng chào khách':'Đoàn khách đang tới · Ưu tiên quầy theo nhu cầu';jobStatus.hidden=false;jobStatus.textContent=welcome.stage===2?t('☻ ĐOÀN PHỐ · {n}/28 · {m}s',{n:state.sold-welcome.startSold,m:Math.ceil(welcome.left)}):t('☻ ĐI MỜI KHÁCH · {n}/2',{n:welcome.stage});}
   $('station-hint').textContent=hint;
   for(const id of ['missions','bag','rush','owner-status','station-hint'])localize($(id));
 }
@@ -171,6 +197,7 @@ document.querySelectorAll('[data-mission-tab]').forEach(b=>{
 });
 $('start').addEventListener('click',()=>{state.started=true;close();save();tone();});
 $('shop').addEventListener('click',()=>open('shop-panel'));$('help').addEventListener('click',()=>open('help-panel'));
+$('tab-team').addEventListener('click',()=>{shopTab='team';renderShop();});
 $('tab-dining').addEventListener('click',()=>{shopTab='dining';renderShop();});
 $('tab-home').addEventListener('click',()=>{shopTab='home';renderShop();});$('tab-growth').addEventListener('click',()=>{shopTab='growth';renderShop();});
 $('missions').addEventListener('click',()=>open('missions-panel'));$('missions').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open('missions-panel');}});

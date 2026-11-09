@@ -1,3 +1,5 @@
+import {careerState,validCareer,carryCapacity,speedFactor,serviceFactor,gainXP,officeRemaining,updateCareer} from './career.js';
+import {demand,readyFood} from './demand.js';
 import {diningState,DINING_UPGRADES,diningUpgrade,diningGoal,interactDining,updateDining,validDining} from './dining.js';
 import {ownerState,updateOwner,reservedBread,deliverTakeaway,PICKUP,validOwner} from './owner.js';
 import {recordMotion,travelDelta} from './motion.js';
@@ -18,7 +20,7 @@ export const emptyBag = () => ({ raw: 0, banh: 0, special: 0, tea: 0, rawPho: 0,
 export const count = bag => Object.values(bag).reduce((a, b) => a + b, 0);
 export function freshState() {
   return {
-    version: 3, dining: diningState(), owner: ownerState(), day: 1, day2: dayTwo(), rng: 20261107, started: false, elapsed: 0, money: 0, revenue: 0, sold: 0,
+    version: 4, career: careerState(), dining: diningState(), owner: ownerState(), day: 1, day2: dayTwo(), rng: 20261107, started: false, elapsed: 0, money: 0, revenue: 0, sold: 0,
     upgrades: {}, player: { x: 255, y: 430, face: 1, step: 0, moving: false, bag: emptyBag(), action: 0 },
     worker: null, worker2: null, phoSupply: 16, phoSupplyTimer: 0, phoKitchen: { input: 0, output: [], job: null, serial: 0 }, phoTill: 0, teaAutoTimer: 0, supply: 20, supplyTimer: 0,
     kitchen: { input: 0, output: [], job: null, serial: 0 }, stock: { banh: 0, special: 0, tea: 0, pho: 0 },
@@ -111,12 +113,12 @@ export function interact(s, actor, dt, emit, worker = false) {
   actor.action = Math.max(0, actor.action - dt);
   if (actor.action > 0) return;
   const at = name => Math.hypot(actor.x - STATIONS[name].x, actor.y - STATIONS[name].y) < 43;
-  const cap = worker ? (worker==='pho'?(s.upgrades.phoBoiler?4:3):(s.upgrades.efficiency ? 5 : 3)) : (s.upgrades.capacity ? 7 : 4), bag = actor.bag;
+  const role=worker==='pho'?'an':worker?'linh':'owner',cap=carryCapacity(s,role),bag=actor.bag,office=!worker&&s.career.office.active?officeRemaining(s):null;
   const foodCount = bag.banh + bag.special + bag.tea + bag.pho;
   const iceJob=!worker&&s.owner.ice.active;
   if(iceJob&&at('supply')&&!bag.ice&&s.owner.ice.stock>0&&count(bag)<cap){bag.ice++;s.owner.ice.stock--;s.owner.ice.taken++;actor.action=.3;emit('pickup',{x:actor.x,y:actor.y,kind:'ice'});return;}
   if(!worker&&at('pickup'))deliverTakeaway(s,emit);
-  if (!iceJob && at('supply') && count(bag) < cap && !foodCount && !bag.rawPho && s.supply > 0) {
+  if (!iceJob && at('supply') && count(bag) < cap && (!foodCount||office&&office.bread>bag.banh+bag.special+bag.raw) && !bag.rawPho && s.supply > 0) {
     bag.raw++; s.supply--; s.stats.rawTaken++; actor.action = .25; emit('pickup', { x: actor.x, y: actor.y, kind: 'raw' });
   }
   if (at('kitchen')) {
@@ -125,18 +127,18 @@ export function interact(s, actor, dt, emit, worker = false) {
   }
   if (at('sale')) {
     if (s.till > 0) { const amount = s.till; s.money += amount; s.stats.collected += amount; s.till = 0; emit('money', { x: 180, y: 623, amount }); }
-    const reserve=!worker?reservedBread(s,actor):{banh:0,special:0};
+    const reserve=office?{banh:Math.min(office.bread,bag.banh),special:Math.min(Math.max(0,office.bread-bag.banh),bag.special)}:!worker?reservedBread(s,actor):{banh:0,special:0};
     const kind=bag.special>reserve.special?'special':bag.banh>reserve.banh?'banh':null;
     if (kind && s.stock.banh + s.stock.special < (s.upgrades.capacity ? 18 : 10)) {
-      bag[kind]--; s.stock[kind]++; s.stats.stocked++; if (worker) s.stats.workerStocked++;
+      bag[kind]--; s.stock[kind]++; s.stats.stocked++; if (worker){s.stats.workerStocked++;gainXP(s,'linh',1);}else gainXP(s,'owner',1);
       actor.action = .22; emit('drop', { x: 180, y: 585 });
     }
-    else if(!worker&&s.owner.takeaway.active&&bag.banh+bag.special<s.owner.takeaway.recipe.bread&&count(bag)<cap){const take=s.stock.banh?'banh':s.stock.special?'special':null;if(take){s.stock[take]--;bag[take]++;actor.action=.25;emit('pickup',{x:actor.x,y:actor.y,kind:take});}}
+    else if(!worker&&(office||s.owner.takeaway.active)&&bag.banh+bag.special<(office?office.bread:s.owner.takeaway.recipe.bread)&&count(bag)<cap){const take=s.stock.banh?'banh':s.stock.special?'special':null;if(take){s.stock[take]--;bag[take]++;actor.action=.25;emit('pickup',{x:actor.x,y:actor.y,kind:take});}}
   }
   if (!worker && at('tea') && s.upgrades.tea) {
     if(bag.ice){bag.ice--;s.owner.ice.used++;s.owner.ice.active=false;s.owner.ice.freshLeft=50;s.owner.ice.cooldown=60;actor.action=.25;emit('owner',{text:'Đã tiếp đá · Trà bán 13 xu thay vì 10 trong 50 giây!'});return;}
-    if(s.owner.takeaway.active&&bag.tea<s.owner.takeaway.recipe.tea&&s.stock.tea>0&&count(bag)<cap){s.stock.tea--;bag.tea++;actor.action=.25;emit('pickup',{x:actor.x,y:actor.y,kind:'tea'});return;}
-    if(!s.owner.takeaway.active&&bag.tea>0&&s.stock.tea<(s.upgrades.capacity?18:10)){bag.tea--;s.stock.tea++;actor.action=.25;return;}
+    if((office||s.owner.takeaway.active)&&bag.tea<(office?office.tea:s.owner.takeaway.recipe.tea)&&s.stock.tea>0&&count(bag)<cap){s.stock.tea--;bag.tea++;actor.action=.25;emit('pickup',{x:actor.x,y:actor.y,kind:'tea'});return;}
+    if(!office&&!s.owner.takeaway.active&&bag.tea>0&&s.stock.tea<(s.upgrades.capacity?18:10)){bag.tea--;s.stock.tea++;actor.action=.25;return;}
     if (s.till > 0) { const amount = s.till; s.money += amount; s.stats.collected += amount; s.till = 0; emit('money', { x: 451, y: 620, amount }); }
     s.teaTimer += dt;
     if (s.teaTimer >= .9 && s.stock.tea < (s.upgrades.capacity ? 18 : 10)) {
@@ -144,28 +146,30 @@ export function interact(s, actor, dt, emit, worker = false) {
     }
   }
   if(s.upgrades.pho){
-    if(at('phoSupply')&&count(bag)<cap&&!foodCount&&!bag.raw&&s.phoSupply>0){bag.rawPho++;s.phoSupply--;s.stats.rawPhoTaken++;actor.action=.3;emit('pickup',{x:actor.x,y:actor.y,kind:'rawPho'});}
+    if(at('phoSupply')&&count(bag)<cap&&(!foodCount||office&&office.pho>bag.pho+bag.rawPho)&&!bag.raw&&s.phoSupply>0){bag.rawPho++;s.phoSupply--;s.stats.rawPhoTaken++;actor.action=.3;emit('pickup',{x:actor.x,y:actor.y,kind:'rawPho'});}
     if(at('phoKitchen')){
       if(bag.rawPho>0){bag.rawPho--;s.phoKitchen.input++;actor.action=.25;emit('drop',{x:365,y:1020});}
       else if(s.phoKitchen.output.length&&count(bag)<cap){s.phoKitchen.output.shift();bag.pho++;actor.action=.28;emit('pickup',{x:actor.x,y:actor.y,kind:'pho'});}
     }
     if(at('phoSale')){
       if(s.phoTill>0){const amount=s.phoTill;s.money+=amount;s.stats.collected+=amount;s.phoTill=0;emit('money',{x:180,y:1340,amount});}
-      if(bag.pho>(!worker&&s.owner.takeaway.active?s.owner.takeaway.recipe.pho:0)&&s.stock.pho<(s.upgrades.phoBoiler?12:6)){bag.pho--;s.stock.pho++;s.stats.stocked++;if(worker)s.stats.workerPhoStocked++;actor.action=.25;emit('drop',{x:180,y:1310});}
-      else if(!worker&&s.owner.takeaway.active&&bag.pho<s.owner.takeaway.recipe.pho&&s.stock.pho>0&&count(bag)<cap){s.stock.pho--;bag.pho++;actor.action=.25;emit('pickup',{x:actor.x,y:actor.y,kind:'pho'});}
+      if(bag.pho>(office?office.pho:!worker&&s.owner.takeaway.active?s.owner.takeaway.recipe.pho:0)&&s.stock.pho<(s.upgrades.phoBoiler?12:6)){bag.pho--;s.stock.pho++;s.stats.stocked++;if(worker){s.stats.workerPhoStocked++;gainXP(s,'an',1);}else gainXP(s,'owner',1);actor.action=.25;emit('drop',{x:180,y:1310});}
+      else if(!worker&&(office||s.owner.takeaway.active)&&bag.pho<(office?office.pho:s.owner.takeaway.recipe.pho)&&s.stock.pho>0&&count(bag)<cap){s.stock.pho--;bag.pho++;actor.action=.25;emit('pickup',{x:actor.x,y:actor.y,kind:'pho'});}
     }
   }
 
 }
 function updateWorker(s, dt, emit, isPho = false) {
   const w = isPho ? s.worker2 : s.worker; if (!w) return;
-  const cap = isPho ? (s.upgrades.phoBoiler?4:3) : s.upgrades.efficiency ? 5 : 3;
+  const role=isPho?'an':'linh',cap=carryCapacity(s,role);
   const names=isPho?['phoSupply','phoKitchen','phoSale']:['supply','kitchen','sale'];
   const raw=isPho?'rawPho':'raw',food=isPho?w.bag.pho:w.bag.banh+w.bag.special,k=isPho?s.phoKitchen:s.kitchen;
   let target=w.target;
   if(target===names[0]&&(count(w.bag)>=cap||(w.bag[raw]>0&&(isPho?s.phoSupply:s.supply)===0)))target=names[1];
   if(target===names[1]&&!w.bag[raw]&&(count(w.bag)>=cap||(food>0&&!k.input&&!k.job&&!k.output.length)))target=names[2];
   if(target===names[2]&&!count(w.bag))target=names[0];
+  const plan=demand(s);if(s.day>=2&&!count(w.bag)){const shelf=isPho?s.stock.pho:s.stock.banh+s.stock.special,limit=isPho?plan.prepPho:plan.prepBread;target=shelf>=limit?names[2]:k.output.length||k.input||k.job?names[1]:names[0];}
+  w.resting=target===names[2]&&!count(w.bag);
   if(target!==w.target){w.target=target;w.path=[];}
   const offset=isPho?730:0;
   const dest=w.target===names[2]?{x:212,y:673+offset}:w.target===names[1]?{x:395,y:369+offset}:{x:132,y:369+offset};
@@ -173,7 +177,7 @@ function updateWorker(s, dt, emit, isPho = false) {
     if (!w.path?.length) w.path = findPath(w, dest, s);
     if (w.path.length) {
       const p = w.path[0], dx = p.x - w.x, dy = p.y - w.y, len = Math.hypot(dx, dy);
-      const d=travelDelta(dx,dy,(isPho?115:s.upgrades.efficiency?155:107)*dt,true);
+      const d=travelDelta(dx,dy,(isPho?115:s.upgrades.efficiency?155:107)*speedFactor(s,role)*dt,true);
       if (len > .1) move(w,d.x,d.y,s,dt);
       if (len < 5) w.path.shift();
     }
@@ -185,14 +189,15 @@ function customerGroup(c){return c.type==='pho'?'pho':c.type==='tea'?'tea':'brea
 function updateCustomers(s,dt,emit){
   s.spawnTimer-=dt;
   const active=s.customers.filter(c=>c.phase!=='leave'),lunch=s.day2.event.active;
-  const activeCap=s.upgrades.pho?(lunch?10:9):7;
+  const plan=demand(s),activeCap=plan.cap||(s.upgrades.pho?(lunch?10:9):7);
   if(s.spawnTimer<=0&&active.length<activeCap&&s.customers.length<MAX_CUSTOMERS){
-    s.spawnTimer=lunch?2.5:s.rushStarted&&s.rushLeft>0?2.7:s.sold<5?7:s.upgrades.pho?3.8:4.7;
+    s.spawnTimer=plan.interval|| (lunch?2.5:s.rushStarted&&s.rushLeft>0?2.7:s.sold<5?7:s.upgrades.pho?3.8:4.7);
     const groups=['bread',...(s.upgrades.tea?['tea']:[]),...(s.upgrades.pho?['pho']:[])];
-    const r=random(s);let group=s.upgrades.pho&&r<(lunch?.55:.28)?'pho':s.upgrades.tea&&r<(s.upgrades.pho?(lunch?.75:.54):.34)?'tea':'bread';
+    const r=random(s),weights=plan.weights;let group=s.upgrades.pho&&plan.interval?(r<weights[0]?'bread':r<weights[0]+weights[1]?'tea':'pho'):s.upgrades.pho&&r<(lunch?.55:.28)?'pho':s.upgrades.tea&&r<(s.upgrades.pho?(lunch?.75:.54):.34)?'tea':'bread';
     if(active.filter(c=>customerGroup(c)===group).length>=4)group=groups.find(g=>active.filter(c=>customerGroup(c)===g).length<4);
     if(group){const offset=group==='pho'?730:0,type=group==='pho'?'pho':group==='tea'?'tea':s.upgrades.oven&&random(s)<.35?'special':'banh';
-      s.customers.push({id:s.nextCustomer++,x:-35,y:440+offset,phase:'enter',type,patience:48,wait:0,service:0,look:Math.floor(random(s)*8),step:0,face:1});}
+      const quantity=plan.bundles&&random(s)<plan.bundles?2:1;
+      s.customers.push({quantity,remaining:quantity,id:s.nextCustomer++,x:-35,y:440+offset,phase:'enter',type,patience:48,wait:0,service:0,look:Math.floor(random(s)*8),step:0,face:1});}
   }
   for(const c of s.customers){
     const group=customerGroup(c),offset=group==='pho'?730:0;
@@ -212,7 +217,7 @@ function updateCustomers(s,dt,emit){
           s.stock[kind]--;if(kind==='tea')s.stats.soldTea++;else if(kind==='pho')s.stats.soldPho++;else s.stats.soldBanh++;
           const price=kind==='tea'&&s.owner.ice.freshLeft>0?13:PRICE[kind];
           if(kind==='pho')s.phoTill+=price;else s.till+=price;
-          s.revenue+=price;s.sold++;s.served++;c.phase='leave';c.holding=kind;
+          s.revenue+=price;s.sold++;s.served++;c.received=(c.received||0)+1;c.remaining=(c.remaining??1)-1;c.service=0;if(!c.remaining)c.phase='leave';c.holding=kind;
           emit('sold',{x:c.x,y:c.y-45,amount:price});
         }}else c.service=0;
       }
@@ -226,7 +231,7 @@ export function tick(s, dt, input = { x: 0, y: 0 }, emit = () => {}) {
   dt = Math.min(dt, .1); s.elapsed += dt;
   const len = Math.hypot(input.x, input.y);
   s.player.moving = false;
-  if (len > .05){const d=travelDelta(input.x,input.y,155*Math.min(1,len)*dt);move(s.player,d.x,d.y,s,dt);}
+  if (len > .05){const d=travelDelta(input.x,input.y,155*speedFactor(s,'owner')*Math.min(1,len)*dt);move(s.player,d.x,d.y,s,dt);}
   interact(s, s.player, dt, emit);
   interactDining(s,s.player,dt,emit);
   s.supplyTimer += dt;
@@ -247,12 +252,12 @@ export function tick(s, dt, input = { x: 0, y: 0 }, emit = () => {}) {
     if(!p.job&&p.input>0&&p.output.length<6){p.input--;p.serial++;const total=s.upgrades.phoBoiler?2.6:4.2;p.job={kind:'pho',left:total,total};}
     if(p.job){p.job.left-=dt;if(p.job.left<=0){p.output.push('pho');s.stats.cookedPho++;p.job=null;emit('cooked',{x:365,y:1000});}}
   }
-  if(s.upgrades.teaAuto){s.teaAutoTimer+=dt;if(s.teaAutoTimer>=3&&s.stock.tea<(s.upgrades.capacity?18:10)){s.teaAutoTimer=0;s.stock.tea++;s.stats.brewed++;s.stats.stocked++;emit('tea',{x:450,y:540});}}
-  updateDayTwo(s,dt,emit);updateOwner(s,dt,emit);
+  if(s.upgrades.teaAuto){s.teaAutoTimer+=dt;if(s.teaAutoTimer>=3&&s.stock.tea<demand(s).teaTarget){s.teaAutoTimer=0;s.stock.tea++;s.stats.brewed++;s.stats.stocked++;emit('tea',{x:450,y:540});}}
+  updateDayTwo(s,dt,emit);updateOwner(s,dt,emit);updateCareer(s,dt,emit);
   updateDining(s,dt,emit,{random:()=>random(s),walk:(a,dest,speed)=>walkTo(s,a,dest,speed,dt)});
 
 }
-export function encode(s){return JSON.stringify({schema:3,state:s});}
+export function encode(s){return JSON.stringify({schema:4,state:s});}
 const integer=n=>Number.isSafeInteger(n)&&n>=0&&n<=1e9;
 const finite=n=>Number.isFinite(n);
 function validBase(s,legacy){
@@ -272,14 +277,14 @@ function validBase(s,legacy){
   if(!(legacy?['banh','special','tea']:['banh','special','tea','pho']).every(k=>integer(s.stock[k])))return false;
   const oldStats=['rawTaken','cooked','stocked','workerStocked','collected','brewed','soldBanh','soldTea'];
   if(!(legacy?oldStats:Object.keys(freshState().stats)).every(k=>integer(s.stats[k])))return false;
-  if(!s.customers.every(c=>[c.x,c.y,c.patience,c.service,c.look,c.step].every(finite)&&['enter','wait','leave'].includes(c.phase)&&['banh','special','tea','pho'].includes(c.type)))return false;
+  if(!s.customers.every(c=>(c.remaining===undefined||Number.isInteger(c.remaining)&&c.remaining>=0&&c.remaining<=2)&&(c.quantity===undefined||[1,2].includes(c.quantity))&&(c.received===undefined||[0,1,2].includes(c.received))&&[c.x,c.y,c.patience,c.service,c.look,c.step].every(finite)&&['enter','wait','leave'].includes(c.phase)&&['banh','special','tea','pho'].includes(c.type)))return false;
   return true;
 }
 export function migrateV1(s){
   if(s?.version!==1||!validBase(s,true))return null;
   const base=freshState();
   const upgradeActor=a=>a?{...a,bag:{...emptyBag(),...a.bag},path:[]}:null;
-  return {...base,...s,version:3,day:s.finished?2:1,day2:dayTwo(s.elapsed,s.revenue),
+  return {...base,...s,version:4,day:s.finished?2:1,day2:dayTwo(s.elapsed,s.revenue),
     player:upgradeActor(s.player),worker:upgradeActor(s.worker),worker2:null,
     stock:{...base.stock,...s.stock},stats:{...base.stats,...s.stats},
     // M1 exit target was inside its removal boundary. Remove only those already offscreen.
@@ -290,9 +295,11 @@ export function decode(json){
   try{
     const v=JSON.parse(json);let s;
     if(v.schema===1&&v.state?.version===1)s=migrateV1(v.state);
-    else if(v.schema===2&&v.state?.version===2){s=v.state;if(!Object.hasOwn(s,'owner'))s.owner=ownerState();for(const a of [s.player,s.worker,s.worker2].filter(Boolean))if(a.bag&&!Object.hasOwn(a.bag,'ice'))a.bag.ice=0;s.dining=diningState();s.version=3;}
-    else if(v.schema===3&&v.state?.version===3)s=v.state;else return null;
-    if(!s||!validOwner(s.owner)||!validBase(s,false)||!integer(s.day)||s.day<1||!validDining(s.dining,s,blocked)||!s.day2||!s.day2.event)return null;
+    else if(v.schema===2&&v.state?.version===2){s=v.state;if(!Object.hasOwn(s,'owner'))s.owner=ownerState();for(const a of [s.player,s.worker,s.worker2].filter(Boolean))if(a.bag&&!Object.hasOwn(a.bag,'ice'))a.bag.ice=0;s.dining=diningState();s.version=4;}
+    else if(v.schema===3&&v.state?.version===3){s=v.state;s.version=4;}
+    else if(v.schema===4&&v.state?.version===4)s=v.state;else return null;
+    if(s&&v.schema<4)s.career=careerState(s);
+    if(!s||!validCareer(s.career)||!validOwner(s.owner)||!validBase(s,false)||!integer(s.day)||s.day<1||!validDining(s.dining,s,blocked)||!s.day2||!s.day2.event)return null;
     if(![s.phoSupply,s.phoTill].every(integer)||![s.phoSupplyTimer,s.teaAutoTimer,s.day2.startedAt,s.day2.revenueStart].every(finite))return null;
     if(![s.day2.completed,s.day2.summarySeen].every(v=>typeof v==='boolean'))return null;
     if(!Array.isArray(s.day2.claimed)||new Set(s.day2.claimed).size!==s.day2.claimed.length||!s.day2.claimed.every(id=>QUESTS.some(q=>q.id===id)))return null;

@@ -1,10 +1,11 @@
+import {level,carryCapacity} from './career.js';
 import {activeTables,needs,GUEST_TYPES} from './dining.js';
 import {DINING_TABLES,SERVICE_PASS,worldHeight as layoutHeight} from './world-layout.js';
 import {t as translateCanvas,getLanguage} from './locale.js';
 import {ActorAnimator,CHIBI} from './animation.js';
 import { WORLD, STATIONS, SOLIDS, count, goal } from './model.js';
 const C = { ink: '#284f43', teal: '#337b69', dark: '#1c5144', cream: '#fff2cf', gold: '#efba58', wood: '#b97b46' };
-let ctx,animation,frameDelta=0;
+let ctx,animation,frameDelta=0,sceneState;
 function rr(x,y,w,h,r,fill,stroke,line=1) { ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=line;ctx.stroke();} }
 function el(x,y,rx,ry,fill) { ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill(); }
 function line(x,y,x2,y2,color,width=2) { ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x2,y2);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.stroke(); }
@@ -101,7 +102,8 @@ function tea(s,t) {
 function actor(a,t,isWorker=false,customer=false,cart=false) {
   const pose=animation.sample(a,t,frameDelta),palette=['#d07c5e','#6f8f9c','#ba944b','#9b85a3','#b16c79','#6c926e','#a1a388','#547973'];
   const shirt=customer?(a.courier?'#ce8555':palette[a.look%8]):isWorker?(a.name==='AN'?'#668e9e':a.name==='MAI'?'#9984a0':'#d18465'):'#32796a';
-  const skin='#e9b78e',pants='#344f4d',shoe=isWorker&&cart?'#cba66a':'#514b3b';
+  const role=isWorker?(a.name==='AN'?'an':a.name==='MAI'?'mai':'linh'):'owner',trained=!customer&&sceneState?.career?Object.values(sceneState.career.roles[role].levels).reduce((n,v)=>n+v,0):0;
+  const skin='#e9b78e',pants='#344f4d',shoe=trained?'#b89448':isWorker&&cart?'#cba66a':'#514b3b';
   ctx.save();ctx.translate(a.x,a.y);if(a.seated)ctx.translate(0,16);el(0,2,16,6,'#3d52352c');
   // Soft short cutout legs. The whole limb swings; there is no joint solver.
   for(const f of (a.seated?[]:[pose.left,pose.right]).sort((a,b)=>a.y-b.y)){
@@ -140,12 +142,13 @@ function actor(a,t,isWorker=false,customer=false,cart=false) {
   ctx.restore();ctx.restore();
   if(a.courier&&a.parcel){rr(-15,-23,30,20,4,'#b78950','#86643f');text('PHỐ',0,-13,8,'#f3e5b9');}
   if(a.bag&&count(a.bag)>0){
-    const items=[];for(const k of ['raw','banh','special','tea','rawPho','pho','ice'])for(let i=0;i<Math.min(a.bag[k],7);i++)items.push(k);
+    const items=[];for(const k of ['raw','banh','special','tea','rawPho','pho','ice'])for(let i=0;i<Math.min(a.bag[k],10);i++)items.push(k);
     if(cart){line(13,-15,31,-10,'#677766',3);el(30,2,5,5,'#4a5d51');el(58,2,5,5,'#4a5d51');rr(20,-24,48,25,5,'#bb864a','#7c6745',2);for(let i=0;i<items.length;i++)food(items[i],33+(i%2)*21,-19-Math.floor(i/2)*8,.48);}
     else{ctx.save();ctx.translate(0,-pose.reach*.4);rr(-18,-18,36,12,4,'#b47b48');for(let i=0;i<items.length;i++)food(items[i],(i%3)*12-12,-20-Math.floor(i/3)*5.5,.45);el(-18,-14,3.6,3.6,skin);el(18,-14,3.6,3.6,skin);ctx.restore();}
   }
-  if(a.holding&&!a.seated)food(a.holding,a.face*12,-20,.6);
+  if(a.holding&&!a.seated){food(a.holding,a.face*12,-20,.6);if((a.received||1)>1)food(a.holding,a.face*8,-27,.45);}
   ctx.restore();
+  if(trained)text('✦'.repeat(Math.min(3,trained)),a.x,a.y-65,10,'#bd8a3b');
   if(isWorker)badge(a.name==='AN'?'AN':a.name==='MAI'?'MAI':'LINH',a.x,a.y-75,43,a.name==='AN'?'#d4e6e4':'#fae2c4');
   if(!customer&&!isWorker)el(a.x,a.y+8,4,2,'#f0bd57');
 }
@@ -153,7 +156,7 @@ function customerBubble(c,t) {
   if(c.phase==='leave') {text(c.angry?'…':'♥',c.x,c.y-76,16,c.angry?'#a07a5f':'#b96750');return;}
   rr(c.x-17,c.y-87,34,28,10,'#fff8df','#c1bc9a');
   ctx.beginPath();ctx.moveTo(c.x-3,c.y-60);ctx.lineTo(c.x,c.y-55);ctx.lineTo(c.x+5,c.y-60);ctx.fillStyle='#fff8df';ctx.fill();
-  food(c.type,c.x,c.y-73,.48);
+  food(c.type,c.x,c.y-73,.48);if((c.remaining||0)>1)text('×'+c.remaining,c.x+22,c.y-73,10,'#a57b44');
   if(c.phase==='wait'){rr(c.x-12,c.y-59,24,3,2,'#ded7b9');rr(c.x-12,c.y-59,24*Math.max(0,c.patience/48),3,2,c.patience<15?'#c68155':'#7ca17b');}
 }
 function background(s,t) {
@@ -269,7 +272,7 @@ export class Renderer {
   resize(){const r=this.canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);this.canvas.width=Math.round(r.width*dpr);this.canvas.height=Math.round(r.height*dpr);this.scale=r.width/600;this.height=r.height/this.scale;this.dpr=dpr;}
   event(type,e){if(this.effects.length>90)this.effects.splice(0,this.effects.length-90);if(e.x!==undefined)this.effects.push({...e,type,life:1.2,max:1.2});if(type==='upgrade')for(let i=0;i<26;i++)this.effects.push({type:'confetti',x:100+Math.random()*400,y:this.camera+100+Math.random()*450,vx:(Math.random()-.5)*80,life:2,max:2,color:i%2?'#d4aa4e':'#5b9672'});}
   render(s,dt=0){
-    ctx=this.context;animation=this.animation;frameDelta=dt;const h=this.height;const worldHeight=layoutHeight(s);this.camera=Math.max(0,Math.min(worldHeight-h,s.player.y-h*.56));
+    sceneState=s;ctx=this.context;animation=this.animation;frameDelta=dt;const h=this.height;const worldHeight=layoutHeight(s);this.camera=Math.max(0,Math.min(worldHeight-h,s.player.y-h*.56));
     if(h>=worldHeight)this.camera=-(h-worldHeight)/2;
     ctx.setTransform(this.dpr*this.scale,0,0,this.dpr*this.scale,0,-this.camera*this.dpr*this.scale);
     ctx.fillStyle='#e2d8bd';ctx.fillRect(0,this.camera,600,h);
@@ -278,7 +281,8 @@ export class Renderer {
     ctx.drawImage(this.backgroundCanvas,0,0);
     const g=goal(s),near=n=>Math.hypot(s.player.x-STATIONS[n].x,s.player.y-STATIONS[n].y)<43;
     let highlighted=g.station;const q=s.owner.takeaway,bag=s.player.bag;if(q.active)highlighted=bag.banh+bag.special<q.recipe.bread?'sale':bag.tea<q.recipe.tea?'tea':bag.pho<q.recipe.pho?'phoSale':'pickup';if(s.owner.ice.active)highlighted=bag.ice?'tea':'supply';
-    for(const [name,p] of Object.entries(STATIONS)){if(p.area==='dining'&&(!s.upgrades.dining||p.requires&&!s.upgrades[p.requires]))continue;if(name==='pickup'&&!q.active||name==='tea'&&!s.upgrades.tea||name.startsWith('pho')&&!s.upgrades.pho)continue;ring(p.x,p.y,near(name),p.area==='dining'?(name==='service'?'▤':s.dining.tables[Number(name.slice(5))].state==='dirty'?'✧':'🍽'):name==='pickup'?'▤':name.toLowerCase().includes('supply')?'↓':name.toLowerCase().includes('kitchen')?'♨':name.toLowerCase().includes('sale')?'↑':'＋',s.elapsed,highlighted===name);}
+    const o=s.career.office,w=s.career.welcome;if(o.active)highlighted=o.stage===0?'office':'invite';else if(w.active&&w.stage<2)highlighted=w.stage===0?'invite':'office';
+    for(const [name,p] of Object.entries(STATIONS)){if(['office','invite'].includes(name)&&!o.active&&!(w.active&&w.stage<2))continue;if(name==='office'&&!s.upgrades.pho)continue;if(p.area==='dining'&&(!s.upgrades.dining||p.requires&&!s.upgrades[p.requires]))continue;if(name==='pickup'&&!q.active||name==='tea'&&!s.upgrades.tea||name.startsWith('pho')&&!s.upgrades.pho)continue;ring(p.x,p.y,near(name),p.area==='dining'?(name==='service'?'▤':s.dining.tables[Number(name.slice(5))].state==='dirty'?'✧':'🍽'):name==='pickup'?'▤':name.toLowerCase().includes('supply')?'↓':name.toLowerCase().includes('kitchen')?'♨':name.toLowerCase().includes('sale')?'↑':'＋',s.elapsed,highlighted===name);}
     const draws=[{y:789,draw:()=>plasticChair(44,774)},{y:324,draw:()=>supply(s,s.elapsed)},{y:324,draw:()=>kitchen(s,s.elapsed)},{y:631,draw:()=>sale(s,s.elapsed)},{y:631,draw:()=>tea(s,s.elapsed)},...s.customers.map(c=>({y:c.y,draw:()=>actor(c,s.elapsed,false,true)})),{y:s.player.y,draw:()=>actor(s.player,s.elapsed,false,false,s.upgrades.capacity)}];
     if(s.owner.courier)draws.push({y:s.owner.courier.y,draw:()=>{actor(s.owner.courier,s.elapsed,false,true,false);if(s.owner.takeaway.active)badge('MANG ĐI',s.owner.courier.x,s.owner.courier.y-78,76,'#eadab6');}});
     if(s.worker)draws.push({y:s.worker.y,draw:()=>actor(s.worker,s.elapsed,true,false,s.upgrades.efficiency)});
@@ -290,6 +294,7 @@ export class Renderer {
       for(const guest of s.dining.guests)draws.push({y:guest.y,draw:()=>actor(guest,s.elapsed,false,true)});
       if(s.dining.waiter)draws.push({y:s.dining.waiter.y,draw:()=>actor(s.dining.waiter,s.elapsed,true,false,!!s.upgrades.serviceCart)});
     }
+    if(o.active||w.active&&w.stage<2){badge('ĐẦU HẺM',130,772,114,'#f7e6bf');if(s.upgrades.pho)badge('VĂN PHÒNG',430,1440,114,'#e5dbbe');}
     draws.sort((a,b)=>a.y-b.y).forEach(d=>{if(d.y>this.camera-100&&d.y<this.camera+h+150)d.draw();});
     s.customers.filter(c=>c.y>this.camera-30&&c.y<this.camera+h+100).forEach(c=>customerBubble(c,s.elapsed));
     if(s.upgrades.dining)for(const tb of activeTables(s)){const g=DINING_TABLES[tb.id];if(g.cy>this.camera-140&&g.cy<this.camera+h+140)diningTicket(s,tb);}

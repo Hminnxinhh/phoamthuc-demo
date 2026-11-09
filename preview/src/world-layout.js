@@ -1,6 +1,8 @@
 // Shared geometry for navigation/rendering. Future dining areas register here, not in the animator.
 export const WORLD = { w: 600, h: 2640 };
 export const STATIONS = {
+  office:{x:450,y:1500,label:'Văn phòng'},
+  invite:{x:104,y:820,label:'Đầu hẻm'},
   pickup: {x:450,y:770,label:'Giao đơn mang đi'},
   supply: { x: 104, y: 365, label: 'Nguyên liệu' },
   kitchen: { x: 365, y: 365, label: 'Bếp bánh mì' },

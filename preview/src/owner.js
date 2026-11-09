@@ -1,3 +1,4 @@
+import {gainXP} from './career.js';
 import {recordMotion,travelDelta} from './motion.js';
 // Optional owner's work. Automation stays intact; no penalties for ignoring jobs.
 import {STATIONS} from './world-layout.js';
@@ -8,7 +9,7 @@ export function ownerState(){return {
 };}
 export function nextRecipe(s){return s.upgrades.pho&&s.owner.takeaway.serial%2===1?{bread:1,tea:1,pho:1}:{bread:s.upgrades.tea?2:3,tea:s.upgrades.tea?2:0,pho:0};}
 export function startTakeaway(s,emit=()=>{}){
-  const q=s.owner.takeaway;if(!s.upgrades.worker||q.active||q.cooldown>0)return false;
+  const q=s.owner.takeaway;if(s.career?.office.active||!s.upgrades.worker||q.active||q.cooldown>0)return false;
   q.recipe=nextRecipe(s);q.active=true;q.left=70;q.serial++;
   s.owner.courier={x:650,y:812,phase:'arrive',face:-1,step:0,look:7,courier:true};
   emit('owner',{text:'Đơn mang đi · Gom món ở quầy rồi giao tại điểm túi giấy.'});return true;
@@ -36,7 +37,7 @@ export function deliverTakeaway(s,emit=()=>{}){
   const amount=normal*12+special*18+r.tea*(s.owner.ice.freshLeft>0?13:10)+r.pho*28,bonus=36+Math.min(10,Math.floor(q.left/10)*2),items=r.bread+r.tea+r.pho;
   b.banh-=normal;b.special-=special;b.tea-=r.tea;b.pho-=r.pho;
   s.stats.soldBanh+=r.bread;s.stats.soldTea+=r.tea;s.stats.soldPho+=r.pho;
-  s.sold+=items;s.served++;s.revenue+=amount;s.money+=amount+bonus;s.stats.rewards+=bonus;q.bonusEarned+=bonus;q.completed++;q.active=false;q.cooldown=70;
+  s.sold+=items;s.served++;if(s.career){s.career.stats.ownerDishes+=items;gainXP(s,'owner',items*2+6);}s.revenue+=amount;s.money+=amount+bonus;s.stats.rewards+=bonus;q.bonusEarned+=bonus;q.completed++;q.active=false;q.cooldown=70;
   if(s.owner.courier){s.owner.courier.phase='leave';s.owner.courier.parcel=true;}
   emit('money',{x:PICKUP.x,y:PICKUP.y-20,amount:amount+bonus});emit('owner',{text:`Giao đơn thành công · ${amount} xu món + ${bonus} xu thưởng!`});return true;
 }
