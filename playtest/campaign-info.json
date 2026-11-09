@@ -1,0 +1,21 @@
+{
+  "campaign": "playtest-01",
+  "gameVersion": "0.8.1",
+  "gameContentSha256": "d111f5c1650593628bebd2402c7d1fee7f89031f1586fbcb5cdba4efe3c87502",
+  "contentSha256": "2b070b02e31014da2b2beea8f3a98348ef73c741c43072b14bfc4c0dadb54e50",
+  "files": {
+    "PhoAmThuc-0.8.1-HTML5.zip": "8f280183badeaa4dda8876c4464204543a8f7caf7ab5af97f581d723402fae81",
+    "assets/bread-gameplay.png": "bbebfefd9c9a27290ec6935ce3f5dd416c5d257b8073312e6fe64bb2f3a1e1af",
+    "assets/dark-menu.png": "42aef131590d17eff1273759c1ae1aafa78b82788184d91a60e8d553c877e0b9",
+    "assets/dining-gameplay.png": "e151671896a3b021f0910d22cc11f071e17f8d94b9bc6a5f03eaafbe31e2cb58",
+    "assets/gameplay-20s.mp4": "4db33dfca77b092e602978af6b5d1982a0a1062ce33161d269fa989b75b60fe5",
+    "assets/icon.svg": "49f34a16476925346843332f0290c821e3d321f6538ec447ed9745beb3d7ddf6",
+    "assets/itch-cover.png": "7803d132e76d9c43d7c0b17401e529fe363e519d1427e29eac5c7ea7d8bc3bc3",
+    "assets/share-cover.png": "e3b926a2d7f886c5de15e2490faaf3ef1b1b10362154da3ea06efe09976b873f",
+    "assets/tiktok-1080x1920.mp4": "7c870681e409535c1975ad314bb93ad569f3301b823f824768fd3d9a3cfe0b0b",
+    "index.html": "5a16b346dbe414c63d2209fcb5ad8eb2d329be24f8c04e3f82926c55ec60165c",
+    "page.js": "1e6837bae9d885583a1ccceb6a097e4d6d095608f66cfba389c22cf6829441c4",
+    "press-kit.zip": "b4e77c51156153a77e1ecd197f6229ea372bdf876adbf94e0620ffe25b05af1b",
+    "style.css": "5b63834521c2cf5a16a7d6b6ff1feed48e112dcd7cfaf087b704f37622df0640"
+  }
+}
