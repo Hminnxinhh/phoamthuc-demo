@@ -10,7 +10,8 @@ import {t as translateCanvas,getLanguage} from './locale.js';
 import {ActorAnimator,CHIBI} from './animation.js';
 import { WORLD, STATIONS, SOLIDS, count, goal } from './model.js';
 const C = { ink: '#284f43', teal: '#337b69', dark: '#1c5144', cream: '#fff2cf', gold: '#efba58', wood: '#b97b46' };
-let ctx,animation,frameDelta=0,sceneState;
+let ctx,animation,frameDelta=0,sceneState,night=false;
+const floorColour=(day,evening)=>night?evening:day;
 function rr(x,y,w,h,r,fill,stroke,line=1) { ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=line;ctx.stroke();} }
 function el(x,y,rx,ry,fill) { ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill(); }
 function line(x,y,x2,y2,color,width=2) { ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x2,y2);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.stroke(); }
@@ -172,13 +173,13 @@ function customerBubble(c,t) {
   if(c.phase==='wait'){rr(c.x-12,c.y-59,24,3,2,'#ded7b9');rr(c.x-12,c.y-59,24*Math.max(0,c.patience/48),3,2,c.patience<15?'#c68155':'#7ca17b');}
 }
 function background(s,t) {
-  ctx.fillStyle='#e2d8bd';ctx.fillRect(0,0,WORLD.w,WORLD.h);
+  ctx.fillStyle=floorColour('#e2d8bd','#263c38');ctx.fillRect(0,0,WORLD.w,WORLD.h);
   // Pavement and shop's single, clear floor plane.
-  rr(12,151,576,710,20,'#b9b49a');rr(19,151,562,701,16,'#eadfc3');
+  rr(12,151,576,710,20,floorColour('#b9b49a','#506256'));rr(19,151,562,701,16,floorColour('#eadfc3','#475148'));
   ctx.save();ctx.beginPath();ctx.roundRect(20,151,560,699,16);ctx.clip();
   for(let row=0;row<15;row++)for(let col=0;col<12;col++){
     const x=20+col*48+(row%2)*24,y=155+row*48;
-    rr(x,y,46,46,2,(row+col)%4===0?'#e4d6b7':(row+col)%4===1?'#f0e5cc':'#eaddbf');
+    rr(x,y,46,46,2,(row+col)%4===0?floorColour('#e4d6b7','#485046'):(row+col)%4===1?floorColour('#f0e5cc','#555d50'):floorColour('#eaddbf','#4d564b'));
     if((row*7+col)%11===0){el(x+10,y+14,1,1,'#cdbf9c');el(x+33,y+32,1,1,'#d2c4a3');}
   }
   // Sunny soft shadow, kept away from working zones.
@@ -190,23 +191,23 @@ function background(s,t) {
   rr(148,112,305,46,8,'#215b49','#d4b169',2);text('PHỐ ẨM THỰC',300,131,25,'#ffebaf',900);text('BÁNH MÌ  •  TRÀ TẮC  •  CHUYỆN PHỐ',300,149,8,'#b7c9a0',600);
   for(const [x,name,price] of [[25,'BÁNH MÌ','20k–30k VNĐ'],[467,'TRÀ TẮC','15k VNĐ']]){rr(x,120,108,43,5,'#375b48','#a99b6e',2);text(name,x+54,132,12,'#f0e1b6');text(price,x+54,150,13,'#e8c47b');}
   // Street entrance and front edging, all on one level.
-  for(let i=0;i<12;i++)rr(i*52,863,50,29,4,'#c6bda0');
+  for(let i=0;i<12;i++)rr(i*52,863,50,29,4,floorColour('#c6bda0','#536052'));
   text('HẺM 01',78,891,10,'#8a8b71',800);line(155,886,245,886,'#c8bea1',1);line(355,886,445,886,'#c8bea1',1);text('✦',300,886,17,'#ac986b');
   rr(197,792,207,35,17,'#d7d3b1');text('GÓC PHỐ CỦA RIÊNG BẠN',300,810,10,'#8d9879',800);
   plant(552,774,.85);
 }
 function expandedFloor(s){
   // A continuous extension of the same tiled floor, with no steps or extra level.
-  rr(12,827,576,775,18,'#b9b49a');rr(19,827,562,766,14,'#eadfc3');
+  rr(12,827,576,775,18,floorColour('#b9b49a','#506256'));rr(19,827,562,766,14,floorColour('#eadfc3','#475148'));
   ctx.save();ctx.beginPath();ctx.roundRect(20,827,560,764,12);ctx.clip();
-  for(let row=0;row<17;row++)for(let col=0;col<12;col++){const x=20+col*48+(row%2)*24,y=827+row*48;rr(x,y,46,46,2,(row+col)%4===0?'#e4d6b7':(row+col)%4===1?'#f0e5cc':'#eaddbf');}
+  for(let row=0;row<17;row++)for(let col=0;col<12;col++){const x=20+col*48+(row%2)*24,y=827+row*48;rr(x,y,46,46,2,(row+col)%4===0?floorColour('#e4d6b7','#485046'):(row+col)%4===1?floorColour('#f0e5cc','#555d50'):floorColour('#eaddbf','#4d564b'));}
   ctx.restore();
   rr(196,792,208,35,17,'#d2ddbb');text('PHỐ CỦA BẠN · CHỌN ĐỊA CHỈ',300,810,11,'#66815d',800);
   rr(145,855,310,50,12,'#eee3c8','#c4b594',1.5);text('MỘT GÓC PHỐ MỚI',300,869,10,'#9b8056',700);text('PHỞ BÒ NHÀ MÌNH',300,889,22,'#8b533c',900);
   for(const x of [53,550]){line(x,847,x,891,'#b39967',2);el(x,899,12,16,'#ca8559');line(x,916,x,923,'#b39967',2);}
   plant(514,1480,.9);rr(372,1322,165,44,12,'#e4dbc0');text('NƯỚC TRONG · BÒ MỀM',454,1345,10,'#9e8b61');
   rr(200,1514,200,34,17,'#d4d9b6');text('PHỐ CỦA BẠN · CHỌN ĐỊA CHỈ',300,1532,10,'#7c916b',800);
-  for(let i=0;i<12;i++)rr(i*52,1603,50,28,4,'#c6bda0');text('HẺM 01 · PHỐ ĐANG LỚN',300,1636,10,'#999574');
+  for(let i=0;i<12;i++)rr(i*52,1603,50,28,4,floorColour('#c6bda0','#536052'));text('HẺM 01 · PHỐ ĐANG LỚN',300,1636,10,'#999574');
 }
 function phoSupply(s,t){
   counterBase(38,968,134,86,'#789a83','#4e7664');
@@ -240,9 +241,9 @@ function phoSale(s,t){
   if(s.phoTill){for(let i=0;i<3;i++){el(275+i*4,1354-i*3,9,4,'#eab34e');el(275+i*4,1351-i*3,9,4,'#f7d079');}badge('+'+compactVnd(s.phoTill,getLanguage()),303,1379,75,'#fff0b8');}
 }
 function diningFloor(s){
-  rr(12,1560,576,1050,18,'#aca88d');rr(19,1560,562,1041,14,'#ede3c9');
+  rr(12,1560,576,1050,18,floorColour('#aca88d','#506256'));rr(19,1560,562,1041,14,floorColour('#ede3c9','#475148'));
   ctx.save();ctx.beginPath();ctx.roundRect(20,1560,560,1040,12);ctx.clip();
-  for(let row=0;row<23;row++)for(let col=0;col<12;col++){const x=20+col*48+(row%2)*24,y=1560+row*48;rr(x,y,46,46,2,(row+col)%5===0?'#dfd1b4':'#eee1c6');}ctx.restore();
+  for(let row=0;row<23;row++)for(let col=0;col<12;col++){const x=20+col*48+(row%2)*24,y=1560+row*48;rr(x,y,46,46,2,(row+col)%5===0?floorColour('#dfd1b4','#485046'):floorColour('#eee1c6','#555d50'));}ctx.restore();
   rr(110,1740,330,56,12,'#e0c997','#c3aa77',1);text('SÂN NHÀ · MỜI NGỒI LẠI',275,1758,18,'#615d3d',900);text('MÓN NÓNG · CHUYỆN VUI',275,1781,10,'#857b50');
   text('KHO · BẾP · PHỤC VỤ TẠI SÂN',290,1580,10,'#7d906a');
   for(const yy of [1850,2090,2330]){rr(22,yy,9,170,3,'#d5c69f');rr(570,yy,9,170,3,'#d5c69f');}
@@ -302,11 +303,11 @@ export class Renderer {
   resize(){const r=this.canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);this.canvas.width=Math.round(r.width*dpr);this.canvas.height=Math.round(r.height*dpr);this.scale=r.width/600;this.height=r.height/this.scale;this.dpr=dpr;}
   event(type,e){if(this.effects.length>90)this.effects.splice(0,this.effects.length-90);if(e.x!==undefined)this.effects.push({...e,type,life:1.2,max:1.2});if(type==='upgrade')for(let i=0;i<26;i++)this.effects.push({type:'confetti',x:100+Math.random()*400,y:this.camera+100+Math.random()*450,vx:(Math.random()-.5)*80,life:2,max:2,color:i%2?'#d4aa4e':'#5b9672'});}
   render(s,dt=0){
-    sceneState=s;ctx=this.context;animation=this.animation;frameDelta=dt;const venue=currentVenue(s),r=this.canvas.getBoundingClientRect();this.scale=Math.min(r.width/600,r.height/(venue.bottom-venue.top));this.height=r.height/this.scale;const h=this.height;this.offsetX=(r.width/this.scale-600)/2;this.camera=venue.top-(h-(venue.bottom-venue.top))/2;
-    ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#d4cfb4';ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+    night=document.documentElement.dataset.theme==='dark';sceneState=s;ctx=this.context;animation=this.animation;frameDelta=dt;const venue=currentVenue(s),r=this.canvas.getBoundingClientRect();this.scale=Math.min(r.width/600,r.height/(venue.bottom-venue.top));this.height=r.height/this.scale;const h=this.height;this.offsetX=(r.width/this.scale-600)/2;this.camera=venue.top-(h-(venue.bottom-venue.top))/2;
+    ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=floorColour('#d4cfb4','#263c38');ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
     ctx.setTransform(this.dpr*this.scale,0,0,this.dpr*this.scale,this.offsetX*this.dpr*this.scale,-this.camera*this.dpr*this.scale);
     ctx.save();ctx.beginPath();ctx.rect(0,venue.top,600,venue.bottom-venue.top);ctx.clip();
-    const key=`${venue.id}-${!!s.upgrades.pho}-${!!s.upgrades.dining}-${!!s.upgrades.canopy}-${getLanguage()}-${Object.values(s.places.claimed).flat().join(',')}`;
+    const key=`${night}-${venue.id}-${!!s.upgrades.pho}-${!!s.upgrades.dining}-${!!s.upgrades.canopy}-${getLanguage()}-${Object.values(s.places.claimed).flat().join(',')}`;
     if(this.backgroundKey!==key||!this.backgroundCanvas){const b=document.createElement('canvas');b.width=600;b.height=WORLD.h;const live=ctx;ctx=b.getContext('2d');if(venue.id==='home')background(s,s.elapsed);else if(venue.id==='pho')expandedFloor(s);else diningFloor(s);venueDecor(s,venue.id);ctx=live;this.backgroundCanvas=b;this.backgroundKey=key;}
     ctx.drawImage(this.backgroundCanvas,0,0);if(venue.id==='dining'&&s.dining.event.active&&s.dining.event.festival){rr(110,1740,330,56,12,'#b14f3d','#e8c472',2);text('NGÀY HỘI PHỐ VIỆT',275,1767,18,'#ffe7ad');}
     const g=goal(s),near=n=>Math.hypot(s.player.x-STATIONS[n].x,s.player.y-STATIONS[n].y)<43;

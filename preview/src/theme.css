@@ -1,0 +1,45 @@
+/* Warm evening palette; food and character sprites keep their own colours. */
+.appearance-settings{padding:13px;border:1px solid #d4d9bf;border-radius:13px;background:#e7ead7}
+.appearance-heading{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.appearance-heading>span{width:30px;text-align:center;font-size:24px;color:#365e48}
+.appearance-heading h3{font-size:14px;margin:0}
+.appearance-heading p{font-size:11px;line-height:1.4;color:#60755e;margin:4px 0 0}
+.theme-choices{display:flex;gap:6px}
+.theme-choices button{min-height:44px;flex:1;min-width:0;border:1px solid #c5ceb5;border-radius:10px;padding:9px 5px;background:#fff8e7;color:#365e48;font-size:12px;font-weight:700;line-height:1.4}
+.theme-choices button[aria-pressed=true]{background:#215e4d;color:#fff9e8;border-color:#154c3c}
+.theme-choices button:focus-visible{outline-offset:1px}
+html[data-theme=dark]{color:#efe9d9;background:#0e1c1d;--night-panel:#1d3331;--night-raised:#29423d;--night-border:#496053;--night-text:#efe9d9;--night-muted:#bcc9b1;--night-gold:#f3c67c;--night-mint:#9bd9bb}
+html[data-theme=dark] #app{background:#142a29;color:var(--night-text)}
+html[data-theme=dark] :is(.sheet,.welcome-card,.sheet-head,.mission-header){background:var(--night-panel);color:var(--night-text);border-color:var(--night-border)}
+html[data-theme=dark] .overlay{background:#071b1bd9}
+html[data-theme=dark] :is(.objective,.wallet,.quest,.lunch-card,.owner-card,.appearance-settings,.quick-guide){background:var(--night-raised);border-color:var(--night-border);color:var(--night-text)}
+html[data-theme=dark] .wallet{box-shadow:0 3px 0 #0e211e}
+html[data-theme=dark] :is(.eyebrow,.mini-mark,.wallet small,.cargo small,#save-status,.welcome-card>p,.welcome-note,.tip p,.sheet-sub,.sheet-foot,.upgrade p,.instructions p,.quest-head p,.quest-tail>span,.lunch-card p,.save-tools p,.chapter-chip,.section-note,.mission-summary,.mission-footer small,.table-detail,.menu-action small,.menu-sheet h4,.quick-guide p,.price-board span,.venue-card p,.install-app p,.update-notes,.appearance-heading p){color:var(--night-muted)}
+html[data-theme=dark] :is(.mission-overview div>span,.mission-short small,.objective div>span){color:var(--night-muted)}
+html[data-theme=dark] :is(.cargo small b,.tip strong,.owner-card h3,.lunch-card h3,.appearance-heading>span){color:var(--night-text)}
+html[data-theme=dark] :is(.brand-dot,.day-icon,.hero-spark,.welcome-steps b,.venue-bar small,.venue-rating,.shop-tabs span,#journal-button #venue-notice){color:var(--night-gold)}
+html[data-theme=dark] :is(.progress,.shop-tabs){background:#152b28}
+html[data-theme=dark] .progress i{background:#7fc7a4}
+html[data-theme=dark] :is(.upgrade,.welcome-steps,.save-tools,.mission-header,.mission-footer){border-color:var(--night-border)}
+html[data-theme=dark] :is(.mission-footer,.tip,.section-note,.upgrade .upgrade-icon,.cargo-icon,.prize-art,.price-board>div,.shop-balance,.career-book summary){background:#29423d;color:var(--night-text)}
+html[data-theme=dark] :is(.menu-toggle,.menu-action,.close,.round,.save-tools button,.secondary,.map-stop,.language-toggle,.language-choice button,.team-tabs button,.track-button,.focus-choices button,.outfit-button,.venue-bar button,.theme-choices button){background:#304b43;border-color:#587062;color:var(--night-text)}
+html[data-theme=dark] :is(.shop-tabs button,.mission-tabs button){color:var(--night-muted)}
+html[data-theme=dark] :is(.shop-tabs .active,.mission-tabs button[aria-selected=true],.track-button[aria-pressed=true],.focus-choices button[aria-pressed=true],.outfit-button[aria-pressed=true],.team-tabs button[aria-pressed=true],.language-choice button[aria-pressed=true],.theme-choices button[aria-pressed=true]){background:#42664f;color:#fff5d9;border-color:#d6b878}
+html[data-theme=dark] .mission-tabs button[aria-selected=true]{border-bottom-color:#edc279}
+html[data-theme=dark] :is(.mission-summary strong,.upgrade .purchased,.quest-tail .done,.mission-scroll .quest-progress-label,.mission-scroll .purchased){color:var(--night-mint)}
+html[data-theme=dark] :is(.primary,.help-action){background:#33735c;color:#fff7e1;border-color:#77a58a;box-shadow:0 3px 0 #0d2620}
+html[data-theme=dark] .menu-actions .help-action{background:#33735c;color:#fff7e1;border-color:#77a58a}
+html[data-theme=dark] .help-action small{color:#d0dfbf}
+html[data-theme=dark] .primary:disabled{background:#34473e;color:#bcc4ac;border-color:#4d6153;box-shadow:0 3px 0 #152b24}
+html[data-theme=dark] .text-button{color:#f2bf8a}
+html[data-theme=dark] :is(.action-guide,.venue-project .prize){background:#59462e;color:#fff0d0;border-color:#a18453}
+html[data-theme=dark] :is(.action-copy small,.action-guide>span:first-child){color:#edc387}
+html[data-theme=dark] .venue-card{background:linear-gradient(140deg,#3f4836,#233f39);border-color:#647155}
+html[data-theme=dark] .venue-pho{background:linear-gradient(140deg,#4b3f36,#29463d)}
+html[data-theme=dark] .venue-dining{background:linear-gradient(140deg,#4b4030,#344431)}
+html[data-theme=dark] .wallet-icon{stroke:var(--night-mint)}
+html[data-theme=dark] .venue-bar .venue-step:active:not(:disabled){background:#42664f}
+html[data-theme=dark] :is(.scene-wrap,.venue-transition){background:#263c38}
+html[data-theme=dark] .station-hint{background:#213b33f5;color:#fff0d4;border-color:#81926c}
+html[data-theme=dark] #owner-status{background:#51442cf5;color:#ffe8bb;border-color:#ae935e}
+html[data-theme=dark] #toast{background:#183b30fa;color:#fff0cd}

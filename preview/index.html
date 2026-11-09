@@ -12,7 +12,9 @@
 <meta name="description" content="Từ một ổ bánh mì nóng, dựng nên góc phố của riêng bạn. Game quản lý quán ăn Việt Nam.">
 <title>Phố Ẩm Thực · Phố đang lớn</title>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
+<script src="./src/theme.js"></script>
 <link rel="stylesheet" href="./src/style.css">
+<link rel="stylesheet" href="./src/theme.css">
 </head>
 <body>
 <main id="app">
@@ -37,7 +39,7 @@
     <div class="cargo"><span class="cargo-icon">▣</span><div><small>ĐANG MANG <b id="capacity">0/4</b></small><strong id="bag">Tay trống</strong></div></div>
     <button id="shop" class="primary"><span>✦</span> Phát triển <i id="shop-dot"></i></button>
   </footer>
-  <div id="save-status">Tự lưu trên thiết bị · 0.8.0</div>
+  <div id="save-status">Tự lưu trên thiết bị · 0.8.1</div>
   <section id="welcome" class="overlay" aria-modal="true" role="dialog" aria-labelledby="welcome-title">
     <div class="welcome-card">
       <div class="language-choice" role="group" aria-label="Chọn ngôn ngữ"><button data-language="vi">Tiếng Việt</button><button data-language="en">English</button></div>
@@ -59,8 +61,16 @@
     <button id="help" class="menu-action help-action"><span aria-hidden="true">?</span><span><b>Cách chơi & giá món</b><small>Điều khiển, công việc và chỉ đường</small></span><span>›</span></button>
     <button id="sound" class="menu-action" aria-label="Bật âm thanh" aria-pressed="false"><span aria-hidden="true">♪</span><span><b>Âm thanh</b><small id="sound-state">Tắt</small></span></button>
     <button id="language" class="menu-action" aria-label="Chọn ngôn ngữ"><span aria-hidden="true">文</span><span><b>Tiếng Việt / English</b><small id="language-state">Đang dùng Tiếng Việt</small></span><span>⇄</span></button>
+    <section class="appearance-settings" aria-labelledby="appearance-title">
+      <div class="appearance-heading"><span aria-hidden="true">◐</span><div><h3 id="appearance-title">Giao diện</h3><p id="theme-state" aria-live="polite">Tự đổi theo thiết bị</p></div></div>
+      <div class="theme-choices" role="group" aria-label="Chế độ giao diện">
+        <button data-theme-mode="system" aria-pressed="true">Theo thiết bị</button>
+        <button data-theme-mode="light" aria-pressed="false">Sáng</button>
+        <button data-theme-mode="dark" aria-pressed="false">Tối</button>
+      </div>
+    </section>
     <button id="nav-toggle" class="menu-action" aria-pressed="true"><span aria-hidden="true">➜</span><span><b>Nhắc việc tại quán</b><small id="nav-state">Đang bật</small></span></button>
-    <button id="install-help" class="menu-action"><img src="./src/assets/app-icon.svg" width="34" height="34" alt=""><span><b>Đưa game ra màn hình chính</b><small>Dễ tìm lại góc phố của bạn</small></span><span>›</span></button><button id="check-update" class="menu-action"><span>↻</span><span><b>Phiên bản & cập nhật</b><small id="update-state">0.8.0</small></span></button>
+    <button id="install-help" class="menu-action"><img src="./src/assets/app-icon.svg" width="34" height="34" alt=""><span><b>Đưa game ra màn hình chính</b><small>Dễ tìm lại góc phố của bạn</small></span><span>›</span></button><button id="check-update" class="menu-action"><span>↻</span><span><b>Phiên bản & cập nhật</b><small id="update-state">0.8.1</small></span></button>
     </div><h3>Bản đồ khu quán</h3><p class="sheet-sub">Xem các trạm của quán hiện tại. Một mặt sàn, không cần chỉ đường.</p><div id="map-stations"></div><p class="sheet-foot">Quán tạm nghỉ khi mở menu.</p></div></section>
   <section id="street-panel" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="street-title"><div class="sheet"><div class="sheet-head"><div><span class="eyebrow">MỖI QUÁN MỘT CÂU CHUYỆN</span><h2 id="street-title">Phố của bạn</h2></div><button class="close" data-close aria-label="Đóng">×</button></div><p class="sheet-sub">Chọn một địa chỉ. Mỗi quán vừa một màn hình, đồng đội vẫn chăm các quán đã mở.</p><div id="venue-list"></div></div></section>
   <section id="journal-panel" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="journal-title"><div class="sheet"><div class="sheet-head"><div><span class="eyebrow">XÂY MỘT NƠI ĐÁNG NHỚ</span><h2 id="journal-title">Sổ quán</h2></div><button class="close" data-close aria-label="Đóng">×</button></div><p id="journal-intro" class="section-note"></p><div id="venue-work"></div><div id="venue-projects"></div><div id="wardrobe"></div></div></section>

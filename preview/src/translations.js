@@ -5,6 +5,11 @@ import {GUIDE_EN} from './guide-translations.js';
 import {CAREER_EN} from './career-translations.js';
 import {DINING_EN} from './dining-translations.js';
 export const EN={...RESTAURANTS_EN,...VENUES_EN,...GUIDE_EN,...DINING_EN,...CAREER_EN,
+'Giao diện':'Appearance','Chế độ giao diện':'Appearance mode','Theo thiết bị':'Device','Sáng':'Light','Tối':'Dark',
+'Tự đổi theo thiết bị':'Follows your device',
+'Theo thiết bị · Đang tối':'Device setting · Dark','Theo thiết bị · Đang sáng':'Device setting · Light',
+'Luôn dùng giao diện tối':'Always use dark mode','Luôn dùng giao diện sáng':'Always use light mode',
+'Sáng/tối theo thiết bị · Chọn giao diện trong Menu · Tiến độ được giữ nguyên.':'Follows device appearance · Choose a theme in Menu · Progress is preserved.',
 'Phố Ẩm Thực':'Phố Ẩm Thực','PHỐ ẨM THỰC':'PHỐ ẨM THỰC','PHỐ':'PHỐ',
 'Phố Ẩm Thực · Phố đang lớn':'Phố Ẩm Thực · A growing food street',
 'Từ một ổ bánh mì nóng, dựng nên góc phố của riêng bạn. Game quản lý quán ăn Việt Nam.':'Build your own food street, starting with a warm bánh mì. A Vietnamese food shop game.',

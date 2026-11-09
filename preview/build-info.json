@@ -1,10 +1,10 @@
 {
-  "version": "0.8.0",
+  "version": "0.8.1",
   "milestone": 3,
-  "phase": "B.4",
-  "sourceBaseCommit": "7c6f853074917fcf6f2511568925682436ed10dc",
+  "phase": "B.4a",
+  "sourceBaseCommit": "95e14f33c68ca25bc0a71b8a13aab0dad1b5aa81",
   "baseCommit": "51ad84cbee48ef3e590f8224b9d023ac632e5a40",
-  "contentSha256": "dcb865f912c9e43bf343d4abb66b4a3051795fb6bd260952b0eede730fb4ee18",
+  "contentSha256": "d111f5c1650593628bebd2402c7d1fee7f89031f1586fbcb5cdba4efe3c87502",
   "runtimeFiles": [
     "icon.svg",
     "index.html",
@@ -38,6 +38,8 @@
     "src/restaurants.js",
     "src/save.js",
     "src/style.css",
+    "src/theme.css",
+    "src/theme.js",
     "src/translations.js",
     "src/venues-translations.js",
     "src/venues.js",
