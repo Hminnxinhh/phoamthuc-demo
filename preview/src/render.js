@@ -1,4 +1,4 @@
-import {currentVenue,hasPrize} from './venues.js';
+import {currentVenue,stationVenue,hasPrize} from './venues.js';
 import {compactVnd,formatVnd} from './currency.js';
 import {level,carryCapacity} from './career.js';
 import {activeTables,needs,GUEST_TYPES} from './dining.js';
@@ -289,18 +289,20 @@ function venueDecor(s){
  if(hasPrize(s,'dining','s-first'))for(let i=0;i<6;i++){const x=62+i*94;line(x,1680,x,1702,'#a87842',1);el(x,1714,13,17,i%2?'#d3a554':'#b9624b');line(x,1730,x,1739,'#bc8b48',2);}
  if(hasPrize(s,'dining','s-repute')){rr(145,1608,310,43,8,'#913f35','#e8bc65',3);text('PHỐ HIẾU KHÁCH',300,1629,19,'#ffe4a6');}
 }
-function drawGuidance(guide,time,camera,height){
- if(!guide?.enabled||guide.kind!=='world')return;
- const points=guide.path||[];ctx.save();
- if(points.length>1&&!guide.reached){ctx.beginPath();ctx.moveTo(points[0].x,points[0].y+6);for(const p of points.slice(1))ctx.lineTo(p.x,p.y+6);ctx.strokeStyle='#fff9e4bb';ctx.lineWidth=8;ctx.lineCap='round';ctx.stroke();ctx.strokeStyle='#bd883f';ctx.lineWidth=4;ctx.setLineDash([2,17]);ctx.lineDashOffset=-time*14;ctx.stroke();ctx.setLineDash([]);}
- const p=guide.target;if(p){const visible=p.y>camera+65&&p.y<camera+height-55;
-  if(visible){ctx.beginPath();ctx.ellipse(p.x,p.y,44+Math.sin(time*4)*2,20,0,0,Math.PI*2);ctx.strokeStyle='#c18a36';ctx.lineWidth=3;ctx.stroke();text('▼',p.x,p.y-30+Math.sin(time*4)*4,22,'#b67d28');}
-  else{const x=Math.max(110,Math.min(490,p.x)),y=p.y<camera?camera+85:camera+height-65,up=p.y<camera;rr(x-91,y-19,182,41,12,'#fff3ccec','#bb9658',1.5);text((up?'↑ ':'↓ ')+translateCanvas(p.label),x,y+1,15,'#89602d');}
- }
- ctx.restore();
+function drawGuidance(guide,s,scale,reducedMotion){
+ if(!guide?.enabled||guide.kind!=='world'||guide.reached||stationVenue(guide.id)!==currentVenue(s).id)return;
+ // The route remains read-only navigation data. Only one small arrow is drawn.
+ const player=s.player,p=(guide.path||[]).find(p=>Math.hypot(p.x-player.x,p.y-player.y)>36)||guide.target;
+ if(!p)return;
+ const venue=currentVenue(s),size=18/scale;
+ ctx.save();ctx.globalAlpha=reducedMotion?1:.72+.28*(.5+.5*Math.sin(s.elapsed*Math.PI*2/1.4));
+ ctx.translate(Math.max(size,Math.min(600-size,player.x)),Math.max(venue.top+size,player.y-108));
+ ctx.rotate(Math.atan2(p.y-player.y,p.x-player.x)+Math.PI/2);
+ ctx.scale(size/24,size/24);ctx.beginPath();ctx.moveTo(0,-12);ctx.lineTo(9,7);ctx.quadraticCurveTo(10,10,7,9);ctx.lineTo(0,5);ctx.lineTo(-7,9);ctx.quadraticCurveTo(-10,10,-9,7);ctx.closePath();
+ ctx.strokeStyle='#fff9e7';ctx.lineWidth=4;ctx.lineJoin='round';ctx.stroke();ctx.fillStyle='#b47724';ctx.fill();ctx.restore();
 }
 export class Renderer {
-  constructor(canvas) {this.canvas=canvas;this.context=canvas.getContext('2d',{alpha:false});this.camera=0;this.height=920;this.effects=[];this.animation=new ActorAnimator();this.resize();}
+  constructor(canvas) {this.canvas=canvas;this.context=canvas.getContext('2d',{alpha:false});this.camera=0;this.height=920;this.effects=[];this.animation=new ActorAnimator();this.reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');this.resize();}
   resize(){const r=this.canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);this.canvas.width=Math.round(r.width*dpr);this.canvas.height=Math.round(r.height*dpr);this.scale=r.width/600;this.height=r.height/this.scale;this.dpr=dpr;}
   event(type,e){if(this.effects.length>90)this.effects.splice(0,this.effects.length-90);if(e.x!==undefined)this.effects.push({...e,type,life:1.2,max:1.2});if(type==='upgrade')for(let i=0;i<26;i++)this.effects.push({type:'confetti',x:100+Math.random()*400,y:this.camera+100+Math.random()*450,vx:(Math.random()-.5)*80,life:2,max:2,color:i%2?'#d4aa4e':'#5b9672'});}
   render(s,dt=0){
@@ -311,7 +313,6 @@ export class Renderer {
     const key=`${!!s.upgrades.pho}-${!!s.upgrades.dining}-${!!s.upgrades.canopy}-${getLanguage()}-${Object.values(s.places.claimed).flat().join(',')}`;
     if(this.backgroundKey!==key||!this.backgroundCanvas){const b=document.createElement('canvas');b.width=600;b.height=WORLD.h;const live=ctx;ctx=b.getContext('2d');background(s,s.elapsed);if(s.upgrades.pho)expandedFloor(s);if(s.upgrades.dining)diningFloor(s);venueDecor(s);ctx=live;this.backgroundCanvas=b;this.backgroundKey=key;}
     ctx.drawImage(this.backgroundCanvas,0,0);if(venue.id==='dining'&&s.dining.event.active&&s.dining.event.festival){rr(130,1608,340,43,9,'#b14f3d','#e8c472',2);text('NGÀY HỘI PHỐ VIỆT',300,1630,18,'#ffe7ad');}
-    drawGuidance(this.guide,s.elapsed,this.camera,h);
     const g=goal(s),near=n=>Math.hypot(s.player.x-STATIONS[n].x,s.player.y-STATIONS[n].y)<43;
     let highlighted=g.station;const q=s.owner.takeaway,bag=s.player.bag;if(q.active)highlighted=bag.banh+bag.special<q.recipe.bread?'sale':bag.tea<q.recipe.tea?'tea':bag.pho<q.recipe.pho?'phoSale':q.venue==='pho'?'office':'pickup';if(s.owner.ice.active)highlighted=bag.ice?'tea':'supply';
     const o=s.career.office,w=s.career.welcome;if(o.active)highlighted=o.stage===0?'office':'invite';else if(w.active&&w.stage<2)highlighted=w.stage===0?'invite':'office';
@@ -331,6 +332,7 @@ export class Renderer {
     if(s.upgrades.dining)for(const tb of activeTables(s)){const g=DINING_TABLES[tb.id];if(g.cy>this.camera-140&&g.cy<this.camera+h+140)diningTicket(s,tb);}
     draws.sort((a,b)=>a.y-b.y).forEach(d=>{if(d.y>this.camera-100&&d.y<this.camera+h+150)d.draw();});
     s.customers.filter(c=>c.y>this.camera-30&&c.y<this.camera+h+100).forEach(c=>customerBubble(c,s.elapsed));
+    drawGuidance(this.guide,s,this.scale,this.reducedMotion.matches);
     for(const e of this.effects){e.life-=dt;const p=1-e.life/e.max;ctx.globalAlpha=Math.max(0,Math.min(1,e.life*3));
       if(e.type==='money'||e.type==='sold'){text('+'+compactVnd(e.amount,getLanguage()),e.x,e.y-p*48,19,e.type==='money'?'#976b21':'#397753',900);el(e.x-24,e.y-p*48,7,7,'#e6b44f');text('₫',e.x-24,e.y-p*48,9,'#856029');}
       else if(e.type==='confetti'){rr(e.x+e.vx*p,e.y+p*100,5,9,1,e.color);}

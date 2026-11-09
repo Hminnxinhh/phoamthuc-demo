@@ -1,0 +1,4 @@
+export const APP_VERSION='0.7.1',VERSION_KEY='pho-am-thuc.last-version';
+export function newerVersion(remote,current){const parse=v=>/^\d+\.\d+\.\d+$/.test(v)?v.split('.').map(Number):null,a=parse(remote),b=parse(current);if(!a||!b)return false;for(let i=0;i<3;i++){if(a[i]!==b[i])return a[i]>b[i];}return false;}
+export async function checkVersion(fetcher,url,current=APP_VERSION){try{const response=await fetcher(url,{cache:'no-store',credentials:'same-origin'});if(!response.ok)return{status:'unavailable'};const info=await response.json();return newerVersion(info.version,current)?{status:'available',version:info.version}:{status:'current',version:current};}catch{return{status:'unavailable'};}}
+export function installPlatform(nav,standalone){if(standalone||nav.standalone)return'standalone';const ua=nav.userAgent||'';return /iPhone|iPad|iPod/.test(ua)||nav.platform==='MacIntel'&&nav.maxTouchPoints>1?'ios':/Android/.test(ua)?'android':'desktop';}

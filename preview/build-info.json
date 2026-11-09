@@ -1,10 +1,10 @@
 {
-  "version": "0.7.0",
+  "version": "0.7.1",
   "milestone": 3,
-  "phase": "B.3",
-  "sourceBaseCommit": "ab8da852e48cea39797bf9411c6a54eebabaa666",
+  "phase": "B.3a",
+  "sourceBaseCommit": "854690fcb603e2161a8d09a83369e9b60efef831",
   "baseCommit": "51ad84cbee48ef3e590f8224b9d023ac632e5a40",
-  "contentSha256": "7e23f18b4f3ca4870787cdb70100a1ab39513c1a965998ba3a1b6a906766914b",
+  "contentSha256": "656691fd6c03befe24b765258ec777db83d994834b7ed018ae5852e8728bf52a",
   "runtimeFiles": [
     "icon.svg",
     "index.html",
