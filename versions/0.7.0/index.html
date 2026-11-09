@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#143f39">
+<link id="app-manifest" rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./src/assets/app-icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Phố Ẩm Thực">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Từ một ổ bánh mì nóng, dựng nên góc phố của riêng bạn. Game quản lý quán ăn Việt Nam.">
+<title>Phố Ẩm Thực · Phố đang lớn</title>
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+<main id="app">
+  <header class="topbar">
+    <div class="brand"><span class="eyebrow">GÓC PHỐ CỦA BẠN</span><h1>Phố Ẩm Thực<span class="brand-dot">✦</span></h1></div>
+    <button id="menu" class="menu-toggle" aria-label="Mở menu">☰ <span>Menu</span></button>
+    <div class="wallet" aria-label="Tiền hiện có"><span class="coin">₫</span><strong id="money">0</strong><small>VNĐ</small></div>
+  </header>
+  <section class="objective">
+    <button id="missions" class="mission-overview" aria-label="Mở nhiệm vụ và bữa trưa"><span class="day-icon">☀</span><div><span id="chapter">NGÀY 01 · KHAI TRƯƠNG</span><strong id="goal">Bán 5 ổ bánh đầu tiên</strong><div class="progress"><i id="goal-progress"></i></div></div><span class="mission-short"><b id="goal-count">0/5</b><small>NHIỆM VỤ ›</small></span></button>
+    <button id="next-action" class="action-guide"><span aria-hidden="true">➜</span><span class="action-copy"><small>VIỆC TIẾP THEO</small><strong id="next-label">Lấy nguyên liệu làm bánh</strong></span><span id="next-distance">Chỉ đường ›</span></button>
+  </section>
+  <nav id="venue-bar" class="venue-bar" aria-label="Địa chỉ đang chơi"><button id="street-button">⌂ <span>Phố của bạn</span></button><div><strong id="venue-name"></strong><small id="venue-stars"></small></div><button id="journal-button">✦ <span>Sổ quán</span><b id="journal-count"></b></button></nav>
+  <div class="scene-wrap" id="scene-wrap">
+    <canvas id="game" aria-label="Quán bánh mì. Kéo trên sàn để di chuyển; đến gần các trạm để tự làm việc." tabindex="0"></canvas>
+    <div id="rush" hidden>♨ GIỜ CAO ĐIỂM <span id="rush-time">60s</span></div>
+    <div id="owner-status" hidden role="status"></div>
+    <div id="station-hint" class="station-hint">Kéo ngón tay trên sàn để di chuyển</div>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </div>
+  <footer class="bottom-bar">
+    <div class="cargo"><span class="cargo-icon">▣</span><div><small>ĐANG MANG <b id="capacity">0/4</b></small><strong id="bag">Tay trống</strong></div></div>
+    <button id="shop" class="primary"><span>✦</span> Phát triển <i id="shop-dot"></i></button>
+  </footer>
+  <div id="save-status">Tự lưu trên thiết bị · 0.7.0</div>
+  <section id="welcome" class="overlay" aria-modal="true" role="dialog" aria-labelledby="welcome-title">
+    <div class="welcome-card">
+      <div class="language-choice" role="group" aria-label="Chọn ngôn ngữ"><button data-language="vi">Tiếng Việt</button><button data-language="en">English</button></div>
+      <div class="mini-mark">MỐC 03B.3 · MỖI QUÁN MỘT CÂU CHUYỆN</div>
+      <div class="hero-food" aria-hidden="true"><span class="food-steam">﹏ ﹏</span><span class="food-bread">🥖</span><span class="hero-spark">✦</span></div>
+      <h2 id="welcome-title">Một ổ bánh nóng.<br>Một khởi đầu mới.</h2>
+      <p>Từ bánh mì nóng đến phở bò thơm.<br>Cùng đồng đội mở rộng góc phố của bạn.</p>
+      <div class="welcome-steps"><span><b>01</b>Lấy nguyên liệu</span><span><b>02</b>Làm bánh</span><span><b>03</b>Bày bán</span></div>
+      <div class="tip"><span>☝</span><p><strong>Kéo ở bất kỳ chỗ trống nào.</strong><br>Đứng gần trạm để tự lấy và giao hàng.</p></div>
+      <button id="start" class="primary large">Mở cửa quán <span>→</span></button>
+      <button id="welcome-install" class="text-button">Thêm ra màn hình chính</button>
+      <small class="welcome-note">Một góc phố, nhiều câu chuyện · Không quảng cáo</small>
+    </div>
+  </section>
+  <section id="shop-panel" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="shop-title">
+    <div class="sheet"><div class="sheet-head"><div><span class="eyebrow">ĐẦU TƯ CHO NGÀY MAI</span><h2 id="shop-title">Phố mình đang lớn</h2></div><button class="close" data-close aria-label="Đóng">×</button></div><p class="sheet-sub">Mỗi thay đổi, một góc phố vui hơn.</p><div class="shop-tabs"><button id="tab-home" class="active" aria-pressed="true">Quán đầu tiên</button><button id="tab-growth" aria-pressed="false">Sân phở mới <span>✦</span></button><button id="tab-dining" aria-pressed="false">Sân ăn tại chỗ</button><button id="tab-team" aria-pressed="false">Đội ngũ</button></div><p id="shop-balance" class="shop-balance"></p><div id="upgrades"></div><p class="sheet-foot">Khách và bếp tạm nghỉ khi bạn xem bảng này.</p></div>
+  </section>
+  <section id="menu-panel" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="menu-title"><div class="sheet menu-sheet"><div class="sheet-head"><h2 id="menu-title">Menu quán</h2><button class="close" data-close aria-label="Đóng">×</button></div><p id="menu-balance" class="shop-balance"></p><div class="menu-actions">
+    <button id="help" class="menu-action help-action"><span aria-hidden="true">?</span><span><b>Cách chơi & giá món</b><small>Điều khiển, công việc và chỉ đường</small></span><span>›</span></button>
+    <button id="sound" class="menu-action" aria-label="Bật âm thanh" aria-pressed="false"><span aria-hidden="true">♪</span><span><b>Âm thanh</b><small id="sound-state">Tắt</small></span></button>
+    <button id="language" class="menu-action" aria-label="Chọn ngôn ngữ"><span aria-hidden="true">文</span><span><b>Tiếng Việt / English</b><small id="language-state">Đang dùng Tiếng Việt</small></span><span>⇄</span></button>
+    <button id="nav-toggle" class="menu-action" aria-pressed="true"><span aria-hidden="true">➜</span><span><b>Đường dẫn trên sàn</b><small id="nav-state">Đang bật</small></span></button>
+    <button id="install-help" class="menu-action"><img src="./src/assets/app-icon.svg" width="34" height="34" alt=""><span><b>Đưa game ra màn hình chính</b><small>Dễ tìm lại góc phố của bạn</small></span><span>›</span></button><button id="check-update" class="menu-action"><span>↻</span><span><b>Phiên bản & cập nhật</b><small id="update-state">0.7.0</small></span></button>
+    </div><h3>Bản đồ khu quán</h3><p class="sheet-sub">Chọn trạm để được chỉ đường. Bạn vẫn tự điều khiển nhân vật.</p><div id="map-stations"></div><p class="sheet-foot">Quán tạm nghỉ khi mở menu.</p></div></section>
+  <section id="street-panel" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="street-title"><div class="sheet"><div class="sheet-head"><div><span class="eyebrow">MỖI QUÁN MỘT CÂU CHUYỆN</span><h2 id="street-title">Phố của bạn</h2></div><button class="close" data-close aria-label="Đóng">×</button></div><p class="sheet-sub">Chọn một địa chỉ. Mỗi quán vừa một màn hình, đồng đội vẫn chăm các quán đã mở.</p><div id="venue-list"></div></div></section>
+  <section id="journal-panel" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="journal-title"><div class="sheet"><div class="sheet-head"><div><span class="eyebrow">XÂY MỘT NƠI ĐÁNG NHỚ</span><h2 id="journal-title">Sổ quán</h2></div><button class="close" data-close aria-label="Đóng">×</button></div><p id="journal-intro" class="section-note"></p><div id="venue-work"></div><div id="venue-projects"></div><div id="wardrobe"></div></div></section>
+  <section id="install-panel" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="install-title"><div class="sheet"><div class="sheet-head"><h2 id="install-title">Góc phố trên màn hình chính</h2><button class="close" data-close aria-label="Đóng">×</button></div><div class="install-app"><img src="./src/assets/app-icon.svg" width="92" height="92" alt=""><strong>Phố Ẩm Thực</strong><p>Một quán nhỏ. Mỗi ngày một câu chuyện mới.</p></div><div id="install-steps"></div><p class="section-note">Trước khi thêm biểu tượng, tải một file tiến độ. Nếu mở biểu tượng thấy quán mới, vào Menu → Cách chơi → Nhập bản lưu.</p><button id="install-export" class="primary large">↓ Giữ file tiến độ</button><p class="sheet-sub">Biểu tượng mở đúng bản thử hiện tại. Tiến độ lưu trong trình duyệt; hãy xuất bản lưu để dự phòng.</p></div></section>
+  <section id="update-panel" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="update-title"><div class="welcome-card"><img src="./src/assets/app-icon.svg" width="72" height="72" alt=""><div class="mini-mark">GÓC PHỐ CÓ ĐIỀU MỚI</div><h2 id="update-title">Có bản cập nhật</h2><p id="update-message"></p><div id="update-notes" class="update-notes"></div><button id="reload-update" class="primary large">Lưu tiến độ & tải bản mới</button><button id="update-later" class="secondary">Để sau</button></div></section>
+  <section id="help-panel" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="help-title"><div class="sheet"><div class="sheet-head"><h2 id="help-title">Chào chủ quán!</h2><button class="close" data-close aria-label="Đóng">×</button></div><div class="language-choice" role="group" aria-label="Chọn ngôn ngữ"><button data-language="vi">Tiếng Việt</button><button data-language="en">English</button></div><div class="quick-guide"><h3>Đi theo việc tiếp theo</h3><p>Nhìn ô vàng dưới mục tiêu. Đường chấm đi trên lối trống. Nếu việc ở địa chỉ khác, chạm Sang quán để chuyển nơi; không cần chạy dọc bản đồ.</p><p>Mở Menu → Bản đồ để chọn bất kỳ trạm đã mở. Có thể tắt đường dẫn trong Menu.</p></div><h3>Giá bán hiện tại</h3><div id="price-board" class="price-board"></div><ol class="instructions"><li><b>Kéo để đi</b><p>Giữ và kéo một ngón tay ở vùng sàn. Máy tính dùng phím mũi tên hoặc WASD.</p></li><li><b>Ghé giỏ nguyên liệu bên trái</b><p>Lấy tối đa sức chứa. Hàng bạn mang hiện ngay trên tay.</p></li><li><b>Đứng ở vòng tròn trước bếp</b><p>Tự giao nguyên liệu, chờ bánh chín và lấy bánh. Bánh đặc biệt xuất hiện khi nâng bếp.</p></li><li><b>Mang bánh tới quầy xanh</b><p>Khách tự mua. Ghé vòng tròn quầy để thu tiền. Quầy trà tắc tự pha khi bạn đứng cạnh.</p></li><li><b>Phát triển theo cách của bạn</b><p>Hoàn tất khai trương để sang Ngày 02. Mở quầy phở rồi chọn Phố của bạn để ghé. Mỗi địa chỉ nằm trọn trong một màn hình; Linh và An vẫn làm việc ở quán đã mở.</p></li><li><b>Khi Linh đã lo bánh</b><p>Chạm bảng Nhiệm vụ để nhận đơn mang đi 70 giây: lấy món ở quầy rồi tới điểm túi giấy. Hoặc nhận tiếp đá, lấy thùng ở kho rau và mang tới trà để có giá bán tốt trong thời gian ngắn. Cả hai đều tùy chọn.</p></li><li><b>Nhiệm vụ và bữa trưa</b><p>Chạm bảng mục tiêu trên cùng để xem ba nhiệm vụ độc lập. Chuẩn bị hàng rồi đón đoàn khách bữa trưa. Chưa đạt 14 món thì có thể thử lại; quán vẫn tiếp tục hoạt động.</p></li><li><b>Mời khách ngồi lại</b><p>Hoàn tất Ngày 02 để mở sân ăn, ghé bằng Phố của bạn. Chọn bàn trong Nhiệm vụ → Bàn ăn, ghé xe phục vụ lấy đúng món rồi mang tới bàn. Khách ăn xong để tiền lại; ghé bàn để thu và dọn. Mai phụ bàn được giao.</p></li></ol><div class="save-tools"><h3>Tiến độ của bạn</h3><p>Bản lưu Mốc 1, 2 và 3A được giữ nguyên khi sang Mốc 3B.</p><p id="import-status" role="status"></p><div><button id="export-save">↓ Xuất bản lưu</button><button id="import-save">↑ Nhập bản lưu</button></div></div><button id="reset" class="text-button">Chơi lại từ đầu…</button><p class="sheet-foot">Tiến độ lưu riêng trong trình duyệt. Không tính thời gian khi đóng game.</p></div></section>
+  <section id="finish" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="finish-title"><div class="welcome-card"><div class="mini-mark">NGÀY 02 · MỘT GÓC PHỐ MỚI</div><div class="finish-medal">✦</div><h2 id="finish-title">Phố mình đông vui rồi!</h2><p>Bếp phở thơm, đồng đội sẵn sàng.<br>Góc phố vẫn còn nhiều khách đang đợi.</p><div id="finish-stats"></div><button id="continue" class="primary large">Tiếp tục chăm quán →</button><small class="welcome-note">Tiếp theo: Ngày 03 · Mở sân ăn và mời Mai cùng phục vụ.</small></div></section>
+  <section id="missions-panel" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="missions-title">
+    <div class="sheet mission-sheet">
+      <div class="mission-header"><div class="sheet-head"><div><span class="eyebrow">TỰ CHỌN NHỊP CHƠI CỦA BẠN</span><h2 id="missions-title">Chuyện của góc phố</h2></div><button class="close" data-close aria-label="Đóng">×</button></div>
+        <div id="mission-summary" class="mission-summary" role="status"></div>
+        <div class="mission-tabs" role="tablist" aria-label="Mục tiêu">
+          <button id="missions-goals" role="tab" aria-controls="mission-goals" data-mission-tab="goals"><span>✦</span><span>Mục tiêu</span><b id="reward-count" hidden></b></button>
+          <button id="missions-jobs" role="tab" aria-controls="mission-jobs" data-mission-tab="jobs"><span>▤</span><span>Việc chủ quán</span></button>
+          <button id="missions-lunch" role="tab" aria-controls="mission-lunch" data-mission-tab="lunch"><span>☀</span><span>Bữa trưa</span></button>
+          <button id="missions-dining" role="tab" aria-controls="mission-dining" data-mission-tab="dining"><span>🍽</span><span>Bàn ăn</span></button>
+        </div>
+      </div>
+      <div class="mission-scroll">
+        <p class="sheet-sub" id="missions-sub"></p>
+        <div id="mission-goals" role="tabpanel" aria-labelledby="missions-goals"><div id="quests"></div></div>
+        <div id="mission-jobs" role="tabpanel" aria-labelledby="missions-jobs" hidden><div id="owner-jobs"></div></div>
+        <div id="mission-dining" role="tabpanel" aria-labelledby="missions-dining" hidden><div id="dining-board"></div></div>
+        <div id="mission-lunch" role="tabpanel" aria-labelledby="missions-lunch" hidden><div id="lunch-card"></div></div>
+      </div>
+      <div class="mission-footer"><small>Quán đang tạm nghỉ</small><button class="primary" data-close>Quay lại quán <span>→</span></button></div>
+    </div>
+  </section>
+  <section id="recovery" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="recovery-title"><div class="welcome-card"><div class="mini-mark">GIỮ AN TOÀN GÓC PHỐ CỦA BẠN</div><h2 id="recovery-title">Bản lưu cần được kiểm tra</h2><p id="recovery-message"></p><p>Dữ liệu chưa bị xóa hoặc ghi đè.<br>Bạn có thể tải bản gốc xuống để giữ lại.</p><button id="export-raw" class="primary large">↓ Giữ bản lưu gốc</button><button id="recovery-import" class="secondary">↑ Nhập bản lưu khác</button><button id="recovery-new" class="text-button">Tạo lượt mới có xác nhận…</button></div></section>
+  <input id="save-file" type="file" accept=".json,application/json" hidden aria-label="Chọn file tiến độ">
+
+</main>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

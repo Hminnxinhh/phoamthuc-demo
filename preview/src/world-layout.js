@@ -30,8 +30,8 @@ export const worldHeight=state=>Math.max(...AREAS.filter(area=>area.unlocked(sta
 
 export const DINING_TABLES=Object.freeze([
  {id:0,cx:180,cy:1930,point:{x:180,y:2020},seats:[{x:150,y:1890},{x:210,y:1890}]},
- {id:1,cx:420,cy:2170,point:{x:420,y:2260},seats:[{x:390,y:2130},{x:450,y:2130}]},
- {id:2,cx:180,cy:2410,point:{x:180,y:2500},seats:[{x:150,y:2370},{x:210,y:2370}],requires:'thirdTable'},
+ {id:1,cx:420,cy:1930,point:{x:420,y:2020},seats:[{x:390,y:1890},{x:450,y:1890}]},
+ {id:2,cx:180,cy:2230,point:{x:180,y:2320},seats:[{x:150,y:2190},{x:210,y:2190}],requires:'thirdTable'},
 ]);
 export const SERVICE_PASS={x:450,y:1700,label:'Xe phục vụ',area:'dining'};
 STATIONS.service=SERVICE_PASS;

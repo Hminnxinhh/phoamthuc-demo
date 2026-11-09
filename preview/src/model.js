@@ -1,26 +1,28 @@
+import {placesState,validPlaces,venueBonus,venueMove,hasPrize,normalizeVenuePosition} from './venues.js';
+import {PRICE,priceFor,isMoney,convertLegacyMoney,validBasis} from './currency.js';
+export {PRICE} from './currency.js';
 import {careerState,validCareer,carryCapacity,speedFactor,serviceFactor,gainXP,officeRemaining,updateCareer} from './career.js';
 import {demand,readyFood} from './demand.js';
 import {diningState,DINING_UPGRADES,diningUpgrade,diningGoal,interactDining,updateDining,validDining} from './dining.js';
-import {ownerState,updateOwner,reservedBread,deliverTakeaway,PICKUP,validOwner} from './owner.js';
+import {ownerState,updateOwner,reservedBread,deliverTakeaway,parcelStation,PICKUP,validOwner} from './owner.js';
 import {recordMotion,travelDelta} from './motion.js';
 import { NEW_UPGRADES, QUESTS, dayTwo, updateDayTwo, available } from './growth.js';
 // Deterministic simulation. No DOM, rendering, wall-clock time or third-party SDKs.
-import {WORLD,STATIONS,SOLIDS,activeSolids,worldHeight} from './world-layout.js';
+import {WORLD,STATIONS,SOLIDS,activeSolids,worldHeight,DINING_TABLES} from './world-layout.js';
 export {WORLD,STATIONS,SOLIDS} from './world-layout.js';
 export const UPGRADES = [
-  { id: 'oven', cost: 60, icon: '♨', name: 'Bếp đôi rực lửa', description: 'Nấu nhanh hơn 40% · Thêm bánh mì đặc biệt 18 xu.' },
-  { id: 'tea', cost: 100, icon: '🍹', name: 'Quầy trà tắc', description: 'Mở món thứ ba · Tự pha và bày trà khi đứng cạnh.' },
-  { id: 'worker', cost: 140, icon: '👩🏻‍🍳', name: 'Mời Linh về quán', description: 'Linh tự lấy hàng, làm bánh, bày bán và thu tiền.' },
-  { id: 'capacity', cost: 75, icon: '▣', name: 'Xe đẩy & kệ rộng', description: 'Mang 7 món · Quầy chứa 18 món · Có xe đẩy thật.' },
-  { id: 'efficiency', cost: 100, icon: '⚡', name: 'Đôi giày nhanh nhẹn', description: 'Linh đi nhanh hơn 45%, mang 5 món thay vì 3.', requires: 'worker' },
+  { id: 'oven', cost:120000, icon: '♨', name: 'Bếp đôi rực lửa', description: 'Nấu nhanh hơn 40% · Thêm bánh mì đặc biệt 30.000đ.' },
+  { id: 'tea', cost:200000, icon: '🍹', name: 'Quầy trà tắc', description: 'Mở món thứ ba · Tự pha và bày trà khi đứng cạnh.' },
+  { id: 'worker', cost:280000, icon: '👩🏻‍🍳', name: 'Mời Linh về quán', description: 'Linh tự lấy hàng, làm bánh, bày bán và thu tiền.' },
+  { id: 'capacity', cost:150000, icon: '▣', name: 'Xe đẩy & kệ rộng', description: 'Mang 7 món · Quầy chứa 18 món · Có xe đẩy thật.' },
+  { id: 'efficiency', cost:200000, icon: '⚡', name: 'Đôi giày nhanh nhẹn', description: 'Linh đi nhanh hơn 45%, mang 5 món thay vì 3.', requires: 'worker' },
 ];
 UPGRADES.push(...NEW_UPGRADES,...DINING_UPGRADES);
-export const PRICE = { banh: 12, special: 18, tea: 10, pho: 28 };
 export const emptyBag = () => ({ raw: 0, banh: 0, special: 0, tea: 0, rawPho: 0, pho: 0, ice: 0 });
 export const count = bag => Object.values(bag).reduce((a, b) => a + b, 0);
 export function freshState() {
   return {
-    version: 4, career: careerState(), dining: diningState(), owner: ownerState(), day: 1, day2: dayTwo(), rng: 20261107, started: false, elapsed: 0, money: 0, revenue: 0, sold: 0,
+    version:6,places:placesState(),currency:'VND',career: careerState(), dining: diningState(), owner: ownerState(), day: 1, day2: dayTwo(), rng: 20261107, started: false, elapsed: 0, money: 0, revenue: 0, sold: 0,
     upgrades: {}, player: { x: 255, y: 430, face: 1, step: 0, moving: false, bag: emptyBag(), action: 0 },
     worker: null, worker2: null, phoSupply: 16, phoSupplyTimer: 0, phoKitchen: { input: 0, output: [], job: null, serial: 0 }, phoTill: 0, teaAutoTimer: 0, supply: 20, supplyTimer: 0,
     kitchen: { input: 0, output: [], job: null, serial: 0 }, stock: { banh: 0, special: 0, tea: 0, pho: 0 },
@@ -39,6 +41,7 @@ export function blocked(x, y, radius = 13, state = null) {
   });
 }
 export function move(actor, dx, dy, state = null, dt = 1/60) {
+  dy=state?venueMove(state,actor,dy):dy;
   const parts = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 5));
   const ox = actor.x, oy = actor.y;
   for (let i = 0; i < parts; i++) {
@@ -96,16 +99,16 @@ export function buy(s, id, emit = () => {}) {
 export function goal(s) {
   if(s.day>=3)return diningGoal(s);
   if(s.day>=2){
-    if(s.day2.completed)return {text:'Phố đang lớn · Giữ quán đông vui!',value:s.revenue,max:Math.max(3000,Math.ceil((s.revenue+1)/1000)*1000),chapter:'TỰ DO PHÁT TRIỂN'};
-    if(!s.upgrades.pho)return {text:'Mở sân phở bò · 300 xu',value:s.money,max:300,station:'shop'};
+    if(s.day2.completed)return {text:'Phố đang lớn · Giữ quán đông vui!',value:s.revenue,max:Math.max(6000000,Math.ceil((s.revenue+1)/2000000)*2000000),money:true,chapter:'TỰ DO PHÁT TRIỂN'};
+    if(!s.upgrades.pho)return {text:'Mở sân phở bò · 600.000đ',value:s.money,max:600000,money:true,station:'shop'};
     const q=QUESTS.find(q=>!s.day2.claimed.includes(q.id));
     return {text:q.title,value:q.value(s),max:q.max,quest:q.id};
   }
   if (s.sold < 5) return { text: 'Bán 5 ổ bánh đầu tiên', value: s.sold, max: 5, station: count(s.player.bag) ? (s.player.bag.raw ? 'kitchen' : 'sale') : 'supply' };
-  if (!s.upgrades.oven) return { text: 'Nâng bếp · mở bánh đặc biệt', value: s.money, max: 60, station: 'shop' };
-  if (!s.upgrades.tea) return { text: 'Mở quầy trà tắc', value: s.money, max: 100, station: 'shop' };
-  if (!s.upgrades.worker) return { text: 'Mời Linh về phụ quán', value: s.money, max: 140, station: 'shop' };
-  if (s.revenue < 900) return { text: 'Doanh thu khai trương: 900 xu', value: s.revenue, max: 900 };
+  if (!s.upgrades.oven) return { text: 'Nâng bếp · mở bánh đặc biệt', value:s.money,max:120000,money:true,station: 'shop' };
+  if (!s.upgrades.tea) return { text: 'Mở quầy trà tắc', value:s.money,max:200000,money:true,station: 'shop' };
+  if (!s.upgrades.worker) return { text: 'Mời Linh về phụ quán', value:s.money,max:280000,money:true,station: 'shop' };
+  if (s.revenue < 1800000) return { text: 'Doanh thu khai trương: 1.800.000đ', value:s.revenue,max:1800000,money:true };
   if (!s.finished) return { text: s.rushStarted ? 'Giữ quán nhộn nhịp hết giờ cao điểm' : 'Chuẩn bị cho giờ cao điểm', value: s.rushStarted ? 60 - s.rushLeft : s.elapsed, max: s.rushStarted ? 60 : 300 };
   return { text: 'Ngày khai trương thành công!', value: 1, max: 1 };
 }
@@ -117,7 +120,7 @@ export function interact(s, actor, dt, emit, worker = false) {
   const foodCount = bag.banh + bag.special + bag.tea + bag.pho;
   const iceJob=!worker&&s.owner.ice.active;
   if(iceJob&&at('supply')&&!bag.ice&&s.owner.ice.stock>0&&count(bag)<cap){bag.ice++;s.owner.ice.stock--;s.owner.ice.taken++;actor.action=.3;emit('pickup',{x:actor.x,y:actor.y,kind:'ice'});return;}
-  if(!worker&&at('pickup'))deliverTakeaway(s,emit);
+  if(!worker&&at(parcelStation(s)))deliverTakeaway(s,emit);
   if (!iceJob && at('supply') && count(bag) < cap && (!foodCount||office&&office.bread>bag.banh+bag.special+bag.raw) && !bag.rawPho && s.supply > 0) {
     bag.raw++; s.supply--; s.stats.rawTaken++; actor.action = .25; emit('pickup', { x: actor.x, y: actor.y, kind: 'raw' });
   }
@@ -130,15 +133,15 @@ export function interact(s, actor, dt, emit, worker = false) {
     const reserve=office?{banh:Math.min(office.bread,bag.banh),special:Math.min(Math.max(0,office.bread-bag.banh),bag.special)}:!worker?reservedBread(s,actor):{banh:0,special:0};
     const kind=bag.special>reserve.special?'special':bag.banh>reserve.banh?'banh':null;
     if (kind && s.stock.banh + s.stock.special < (s.upgrades.capacity ? 18 : 10)) {
-      bag[kind]--; s.stock[kind]++; s.stats.stocked++; if (worker){s.stats.workerStocked++;gainXP(s,'linh',1);}else gainXP(s,'owner',1);
+      bag[kind]--; s.stock[kind]++; s.stats.stocked++; if (worker){s.stats.workerStocked++;gainXP(s,'linh',1);}else{gainXP(s,'owner',1);s.places.stats.breadStocked++;}
       actor.action = .22; emit('drop', { x: 180, y: 585 });
     }
     else if(!worker&&(office||s.owner.takeaway.active)&&bag.banh+bag.special<(office?office.bread:s.owner.takeaway.recipe.bread)&&count(bag)<cap){const take=s.stock.banh?'banh':s.stock.special?'special':null;if(take){s.stock[take]--;bag[take]++;actor.action=.25;emit('pickup',{x:actor.x,y:actor.y,kind:take});}}
   }
   if (!worker && at('tea') && s.upgrades.tea) {
-    if(bag.ice){bag.ice--;s.owner.ice.used++;s.owner.ice.active=false;s.owner.ice.freshLeft=50;s.owner.ice.cooldown=60;actor.action=.25;emit('owner',{text:'Đã tiếp đá · Trà bán 13 xu thay vì 10 trong 50 giây!'});return;}
+    if(bag.ice){bag.ice--;s.owner.ice.used++;s.owner.ice.active=false;s.owner.ice.freshLeft=hasPrize(s,'home','h-ice')?70:50;s.owner.ice.cooldown=60;actor.action=.25;emit('owner',{text:`Đã tiếp đá · Trà bán 18.000đ thay vì 15.000đ trong ${s.owner.ice.freshLeft} giây!`});return;}
     if((office||s.owner.takeaway.active)&&bag.tea<(office?office.tea:s.owner.takeaway.recipe.tea)&&s.stock.tea>0&&count(bag)<cap){s.stock.tea--;bag.tea++;actor.action=.25;emit('pickup',{x:actor.x,y:actor.y,kind:'tea'});return;}
-    if(!office&&!s.owner.takeaway.active&&bag.tea>0&&s.stock.tea<(s.upgrades.capacity?18:10)){bag.tea--;s.stock.tea++;actor.action=.25;return;}
+    if(bag.tea>(office?office.tea:s.owner.takeaway.active?s.owner.takeaway.recipe.tea:0)&&s.stock.tea<(s.upgrades.capacity?18:10)){bag.tea--;s.stock.tea++;actor.action=.25;return;}
     if (s.till > 0) { const amount = s.till; s.money += amount; s.stats.collected += amount; s.till = 0; emit('money', { x: 451, y: 620, amount }); }
     s.teaTimer += dt;
     if (s.teaTimer >= .9 && s.stock.tea < (s.upgrades.capacity ? 18 : 10)) {
@@ -153,7 +156,7 @@ export function interact(s, actor, dt, emit, worker = false) {
     }
     if(at('phoSale')){
       if(s.phoTill>0){const amount=s.phoTill;s.money+=amount;s.stats.collected+=amount;s.phoTill=0;emit('money',{x:180,y:1340,amount});}
-      if(bag.pho>(office?office.pho:!worker&&s.owner.takeaway.active?s.owner.takeaway.recipe.pho:0)&&s.stock.pho<(s.upgrades.phoBoiler?12:6)){bag.pho--;s.stock.pho++;s.stats.stocked++;if(worker){s.stats.workerPhoStocked++;gainXP(s,'an',1);}else gainXP(s,'owner',1);actor.action=.25;emit('drop',{x:180,y:1310});}
+      if(bag.pho>(office?office.pho:!worker&&s.owner.takeaway.active?s.owner.takeaway.recipe.pho:0)&&s.stock.pho<(s.upgrades.phoBoiler?12:6)){bag.pho--;s.stock.pho++;s.stats.stocked++;if(worker){s.stats.workerPhoStocked++;gainXP(s,'an',1);}else{gainXP(s,'owner',1);s.places.stats.phoStocked++;}actor.action=.25;emit('drop',{x:180,y:1310});}
       else if(!worker&&(office||s.owner.takeaway.active)&&bag.pho<(office?office.pho:s.owner.takeaway.recipe.pho)&&s.stock.pho>0&&count(bag)<cap){s.stock.pho--;bag.pho++;actor.action=.25;emit('pickup',{x:actor.x,y:actor.y,kind:'pho'});}
     }
   }
@@ -177,7 +180,7 @@ function updateWorker(s, dt, emit, isPho = false) {
     if (!w.path?.length) w.path = findPath(w, dest, s);
     if (w.path.length) {
       const p = w.path[0], dx = p.x - w.x, dy = p.y - w.y, len = Math.hypot(dx, dy);
-      const d=travelDelta(dx,dy,(isPho?115:s.upgrades.efficiency?155:107)*speedFactor(s,role)*dt,true);
+      const d=travelDelta(dx,dy,(isPho?115:s.upgrades.efficiency?155:107)*speedFactor(s,role)*(1+venueBonus(s,isPho?'pho':'home'))*dt,true);
       if (len > .1) move(w,d.x,d.y,s,dt);
       if (len < 5) w.path.shift();
     }
@@ -197,7 +200,7 @@ function updateCustomers(s,dt,emit){
     if(active.filter(c=>customerGroup(c)===group).length>=4)group=groups.find(g=>active.filter(c=>customerGroup(c)===g).length<4);
     if(group){const offset=group==='pho'?730:0,type=group==='pho'?'pho':group==='tea'?'tea':s.upgrades.oven&&random(s)<.35?'special':'banh';
       const quantity=plan.bundles&&random(s)<plan.bundles?2:1;
-      s.customers.push({quantity,remaining:quantity,id:s.nextCustomer++,x:-35,y:440+offset,phase:'enter',type,patience:48,wait:0,service:0,look:Math.floor(random(s)*8),step:0,face:1});}
+      s.customers.push({priceBasis:'current',quantity,remaining:quantity,id:s.nextCustomer++,x:-35,y:440+offset,phase:'enter',type,patience:48+(type==='pho'&&hasPrize(s,'pho','p-lunch')?6:0),wait:0,service:0,look:Math.floor(random(s)*8),step:0,face:1});}
   }
   for(const c of s.customers){
     const group=customerGroup(c),offset=group==='pho'?730:0;
@@ -213,9 +216,9 @@ function updateCustomers(s,dt,emit){
       if(idx===0){let kind=c.type;
         if(kind==='special'&&!s.stock.special&&s.stock.banh)kind='banh';
         if(kind==='banh'&&!s.stock.banh&&s.stock.special)kind='special';
-        if(s.stock[kind]>0){c.service+=dt;if(c.service>=1.2){
+        if(s.stock[kind]>0){c.service+=dt;if(c.service>=(kind==='pho'&&hasPrize(s,'pho','p-local')||kind!=='pho'&&kind!=='tea'&&hasPrize(s,'home','h-team')?1:1.2)){
           s.stock[kind]--;if(kind==='tea')s.stats.soldTea++;else if(kind==='pho')s.stats.soldPho++;else s.stats.soldBanh++;
-          const price=kind==='tea'&&s.owner.ice.freshLeft>0?13:PRICE[kind];
+          const price=priceFor(kind,c.priceBasis,s.owner.ice.freshLeft>0);
           if(kind==='pho')s.phoTill+=price;else s.till+=price;
           s.revenue+=price;s.sold++;s.served++;c.received=(c.received||0)+1;c.remaining=(c.remaining??1)-1;c.service=0;if(!c.remaining)c.phase='leave';c.holding=kind;
           emit('sold',{x:c.x,y:c.y-45,amount:price});
@@ -239,17 +242,17 @@ export function tick(s, dt, input = { x: 0, y: 0 }, emit = () => {}) {
   const k = s.kitchen;
   if (!k.job && k.input > 0 && k.output.length < 8) {
     k.input--; k.serial++;
-    k.job = { kind: s.upgrades.oven && k.serial % 3 === 0 ? 'special' : 'banh', left: s.upgrades.oven ? 1.5 : 2.5, total: s.upgrades.oven ? 1.5 : 2.5 };
+    k.job = { kind: s.upgrades.oven && k.serial % 3 === 0 ? 'special' : 'banh', left:(s.upgrades.oven?1.5:2.5)/(1+venueBonus(s,'home')),total:(s.upgrades.oven?1.5:2.5)/(1+venueBonus(s,'home')) };
   }
   if (k.job) { k.job.left -= dt; if (k.job.left <= 0) { k.output.push(k.job.kind); s.stats.cooked++; k.job = null; emit('cooked', { x: 365, y: 270 }); } }
   updateWorker(s, dt, emit); updateWorker(s, dt, emit, true); updateCustomers(s, dt, emit);
   if (!s.rushStarted && s.elapsed >= 300 && s.upgrades.worker && s.upgrades.tea) { s.rushStarted = true; emit('rush', { text: 'Giờ cao điểm! Cả phố ghé quán.' }); }
   if (s.rushStarted && s.rushLeft > 0) s.rushLeft = Math.max(0, s.rushLeft - dt);
-  if (!s.finished && s.revenue >= 900 && s.rushStarted && s.rushLeft === 0 && s.upgrades.oven && s.upgrades.worker && s.upgrades.tea) { s.finished = true; s.day=2; s.day2=dayTwo(s.elapsed,s.revenue); emit('day',{text:'Ngày 02 · Cả phố đang đợi món mới!'}); }
+  if (!s.finished && s.revenue >= 1800000 && s.rushStarted && s.rushLeft === 0 && s.upgrades.oven && s.upgrades.worker && s.upgrades.tea) { s.finished = true; s.day=2; s.day2=dayTwo(s.elapsed,s.revenue); emit('day',{text:'Ngày 02 · Cả phố đang đợi món mới!'}); }
   if(s.upgrades.pho){
     s.phoSupplyTimer+=dt;if(s.phoSupplyTimer>=12){s.phoSupplyTimer-=12;s.phoSupply=Math.min(16,s.phoSupply+8);}
     const p=s.phoKitchen;
-    if(!p.job&&p.input>0&&p.output.length<6){p.input--;p.serial++;const total=s.upgrades.phoBoiler?2.6:4.2;p.job={kind:'pho',left:total,total};}
+    if(!p.job&&p.input>0&&p.output.length<6){p.input--;p.serial++;const total=(s.upgrades.phoBoiler?2.6:4.2)/(1+venueBonus(s,'pho'));p.job={kind:'pho',left:total,total};}
     if(p.job){p.job.left-=dt;if(p.job.left<=0){p.output.push('pho');s.stats.cookedPho++;p.job=null;emit('cooked',{x:365,y:1000});}}
   }
   if(s.upgrades.teaAuto){s.teaAutoTimer+=dt;if(s.teaAutoTimer>=3&&s.stock.tea<demand(s).teaTarget){s.teaAutoTimer=0;s.stock.tea++;s.stats.brewed++;s.stats.stocked++;emit('tea',{x:450,y:540});}}
@@ -257,12 +260,12 @@ export function tick(s, dt, input = { x: 0, y: 0 }, emit = () => {}) {
   updateDining(s,dt,emit,{random:()=>random(s),walk:(a,dest,speed)=>walkTo(s,a,dest,speed,dt)});
 
 }
-export function encode(s){return JSON.stringify({schema:4,state:s});}
+export function encode(s){return JSON.stringify({schema:6,state:s});}
 const integer=n=>Number.isSafeInteger(n)&&n>=0&&n<=1e9;
 const finite=n=>Number.isFinite(n);
 function validBase(s,legacy){
   if(!s||!s.player||!s.upgrades||!s.stock||!s.stats||!Array.isArray(s.customers)||s.customers.length>10000)return false;
-  if(![s.money,s.revenue,s.sold,s.till,s.supply,s.nextCustomer,s.served,s.lost].every(integer)||!finite(s.elapsed)||s.elapsed<0||!Number.isInteger(s.rng)||s.rng<0||s.rng>0xffffffff)return false;
+  if(![s.money,s.revenue,s.till].every(isMoney)||![s.sold,s.supply,s.nextCustomer,s.served,s.lost].every(integer)||!finite(s.elapsed)||s.elapsed<0||!Number.isInteger(s.rng)||s.rng<0||s.rng>0xffffffff)return false;
   if(![s.supplyTimer,s.spawnTimer,s.teaTimer,s.rushLeft].every(finite)||typeof s.started!=='boolean')return false;
   if(!Object.values(s.upgrades).every(v=>typeof v==='boolean'))return false;
   const bagKeys=legacy?['raw','banh','special','tea']:Object.keys(emptyBag());
@@ -276,15 +279,15 @@ function validBase(s,legacy){
   }
   if(!(legacy?['banh','special','tea']:['banh','special','tea','pho']).every(k=>integer(s.stock[k])))return false;
   const oldStats=['rawTaken','cooked','stocked','workerStocked','collected','brewed','soldBanh','soldTea'];
-  if(!(legacy?oldStats:Object.keys(freshState().stats)).every(k=>integer(s.stats[k])))return false;
-  if(!s.customers.every(c=>(c.remaining===undefined||Number.isInteger(c.remaining)&&c.remaining>=0&&c.remaining<=2)&&(c.quantity===undefined||[1,2].includes(c.quantity))&&(c.received===undefined||[0,1,2].includes(c.received))&&[c.x,c.y,c.patience,c.service,c.look,c.step].every(finite)&&['enter','wait','leave'].includes(c.phase)&&['banh','special','tea','pho'].includes(c.type)))return false;
+  if(!(legacy?oldStats:Object.keys(freshState().stats)).every(k=>(['collected','rewards'].includes(k)?isMoney:integer)(s.stats[k])))return false;
+  if(!s.customers.every(c=>(legacy||validBasis(c.priceBasis))&&(c.remaining===undefined||Number.isInteger(c.remaining)&&c.remaining>=0&&c.remaining<=2)&&(c.quantity===undefined||[1,2].includes(c.quantity))&&(c.received===undefined||[0,1,2].includes(c.received))&&[c.x,c.y,c.patience,c.service,c.look,c.step].every(finite)&&['enter','wait','leave'].includes(c.phase)&&['banh','special','tea','pho'].includes(c.type)))return false;
   return true;
 }
 export function migrateV1(s){
   if(s?.version!==1||!validBase(s,true))return null;
   const base=freshState();
   const upgradeActor=a=>a?{...a,bag:{...emptyBag(),...a.bag},path:[]}:null;
-  return {...base,...s,version:4,day:s.finished?2:1,day2:dayTwo(s.elapsed,s.revenue),
+  return {...base,...s,version:6,day:s.finished?2:1,day2:dayTwo(s.elapsed,s.revenue),
     player:upgradeActor(s.player),worker:upgradeActor(s.worker),worker2:null,
     stock:{...base.stock,...s.stock},stats:{...base.stats,...s.stats},
     // M1 exit target was inside its removal boundary. Remove only those already offscreen.
@@ -295,12 +298,22 @@ export function decode(json){
   try{
     const v=JSON.parse(json);let s;
     if(v.schema===1&&v.state?.version===1)s=migrateV1(v.state);
-    else if(v.schema===2&&v.state?.version===2){s=v.state;if(!Object.hasOwn(s,'owner'))s.owner=ownerState();for(const a of [s.player,s.worker,s.worker2].filter(Boolean))if(a.bag&&!Object.hasOwn(a.bag,'ice'))a.bag.ice=0;s.dining=diningState();s.version=4;}
-    else if(v.schema===3&&v.state?.version===3){s=v.state;s.version=4;}
-    else if(v.schema===4&&v.state?.version===4)s=v.state;else return null;
+    else if(v.schema===2&&v.state?.version===2){s=v.state;if(!Object.hasOwn(s,'owner'))s.owner=ownerState();for(const a of [s.player,s.worker,s.worker2].filter(Boolean))if(a.bag&&!Object.hasOwn(a.bag,'ice'))a.bag.ice=0;s.dining=diningState();s.version=6;}
+    else if(v.schema===3&&v.state?.version===3){s=v.state;s.version=6;}
+    else if(v.schema===4&&v.state?.version===4){s=v.state;s.version=6;}
+    else if(v.schema===5&&v.state?.version===5){s=v.state;s.version=6;}
+    else if(v.schema===6&&v.state?.version===6)s=v.state;else return null;
     if(s&&v.schema<4)s.career=careerState(s);
+    if(s&&v.schema<5)convertLegacyMoney(s);
+    if(s?.currency!=='VND')return null;
+    if(s&&v.schema<6){s.places=placesState(s);s.owner.takeaway.venue='home';s.dining.event.festival=false;for(const table of s.dining.tables)table.greeted=false;normalizeVenuePosition(s);
+      // The compact courtyard keeps reservations/bills, but moves old seated guests to their new seats.
+      for(const guest of s.dining.guests){if(guest.seated||guest.phase==='eat'){const seat=DINING_TABLES[guest.table]?.seats[guest.seat];if(seat)Object.assign(guest,seat);}else if(guest.y>2390||blocked(guest.x,guest.y,12,s)){guest.x=550;guest.y=1770+guest.seat*36;}guest.path=[];delete guest.navKey;}
+      for(const actor of [s.player,s.dining.waiter].filter(Boolean))if(blocked(actor.x,actor.y,12,s)){actor.x=actor===s.player?300:480;actor.y=actor===s.player?1810:1740;actor.path=[];actor.moving=false;}
+}
+    if(!validPlaces(s?.places,s))return null;
     if(!s||!validCareer(s.career)||!validOwner(s.owner)||!validBase(s,false)||!integer(s.day)||s.day<1||!validDining(s.dining,s,blocked)||!s.day2||!s.day2.event)return null;
-    if(![s.phoSupply,s.phoTill].every(integer)||![s.phoSupplyTimer,s.teaAutoTimer,s.day2.startedAt,s.day2.revenueStart].every(finite))return null;
+    if(![s.phoSupply].every(integer)||!isMoney(s.phoTill)||![s.phoSupplyTimer,s.teaAutoTimer,s.day2.startedAt].every(finite)||!isMoney(s.day2.revenueStart))return null;
     if(![s.day2.completed,s.day2.summarySeen].every(v=>typeof v==='boolean'))return null;
     if(!Array.isArray(s.day2.claimed)||new Set(s.day2.claimed).size!==s.day2.claimed.length||!s.day2.claimed.every(id=>QUESTS.some(q=>q.id===id)))return null;
     const e=s.day2.event;if(![e.left,e.cooldown,e.startSold,e.best,e.attempts,e.lastServed].every(n=>finite(n)&&n>=0)||e.left>60||typeof e.active!=='boolean')return null;

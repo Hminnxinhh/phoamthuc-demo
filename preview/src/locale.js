@@ -1,3 +1,4 @@
+import {formatVnd} from './currency.js';
 import {EN} from './translations.js';
 export const LANGUAGE_KEY='pho-am-thuc.language';
 let language='vi';const cache=new Map(),untranslated=new Set();
@@ -15,6 +16,7 @@ export function t(source,values={}){
   if(source==null)return '';if(typeof source!=='string')return String(source);
   let message=source;
   if(language==='en'){
+    if(/^\d[\d.]*đ$/.test(source))return formatVnd(Number(source.replace(/\D/g,'')),'en');
     if(EN[source]!==undefined)message=EN[source];
     else if(cache.has(source))message=cache.get(source);
     else{for(const pattern of patterns){const match=source.match(pattern.match);if(match){message=pattern.target.replace(/\{(\w+)\}/g,(_,key)=>t(match[pattern.names.indexOf(key)+1]));break;}}

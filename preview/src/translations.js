@@ -1,11 +1,13 @@
+import {VENUES_EN} from './venues-translations.js';
+import {GUIDE_EN} from './guide-translations.js';
 // Vietnamese source messages are stable IDs. Food/character/brand names remain proper names.
 import {CAREER_EN} from './career-translations.js';
 import {DINING_EN} from './dining-translations.js';
-export const EN={...DINING_EN,...CAREER_EN,
+export const EN={...VENUES_EN,...GUIDE_EN,...DINING_EN,...CAREER_EN,
 'Phố Ẩm Thực':'Phố Ẩm Thực','PHỐ ẨM THỰC':'PHỐ ẨM THỰC','PHỐ':'PHỐ',
 'Phố Ẩm Thực · Phố đang lớn':'Phố Ẩm Thực · A growing food street',
 'Từ một ổ bánh mì nóng, dựng nên góc phố của riêng bạn. Game quản lý quán ăn Việt Nam.':'Build your own food street, starting with a warm bánh mì. A Vietnamese food shop game.',
-'GÓC PHỐ CỦA BẠN':'YOUR LITTLE FOOD STREET','Tiền hiện có':'Your coins','xu':'coins','NHIỆM VỤ ›':'TASKS ›',
+'GÓC PHỐ CỦA BẠN':'YOUR LITTLE FOOD STREET','Tiền hiện có':'Your balance','xu':'coins','NHIỆM VỤ ›':'TASKS ›',
 'Mở nhiệm vụ và bữa trưa':'Open tasks and lunch rush','Quán bánh mì. Kéo trên sàn để di chuyển; đến gần các trạm để tự làm việc.':'Your food shop. Drag the floor to move; stand near a station to work automatically.',
 'Kéo ngón tay trên sàn để di chuyển':'Drag the floor to move','Bật âm thanh':'Enable sound','Tắt âm thanh':'Mute sound','Âm thanh':'Sound','Hướng dẫn':'Help',
 'ĐANG MANG':'CARRYING','Tay trống':'Empty hands','Phát triển':'Upgrades','Tự lưu trên thiết bị · Mốc 3A':'Autosaves on this device · Milestone 3A',
