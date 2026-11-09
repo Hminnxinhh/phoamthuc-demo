@@ -1,6 +1,11 @@
 // Shared geometry for navigation/rendering. Future dining areas register here, not in the animator.
 export const WORLD = { w: 600, h: 2640 };
 export const STATIONS = {
+  phoDoor:{x:104,y:1550,label:'Cửa hẻm phở'},
+  diningSupply:{x:100,y:1700,label:'Kho riêng sân ăn',area:'dining'},
+  diningKitchen:{x:260,y:1700,label:'Bếp riêng sân ăn',area:'dining'},
+  diningPickup:{x:450,y:2330,label:'Giao món tại sân',area:'dining'},
+  diningDoor:{x:104,y:1780,label:'Cửa sân ăn',area:'dining'},
   office:{x:450,y:1500,label:'Văn phòng'},
   invite:{x:104,y:820,label:'Đầu hẻm'},
   pickup: {x:450,y:770,label:'Giao đơn mang đi'},
@@ -36,5 +41,6 @@ export const DINING_TABLES=Object.freeze([
 export const SERVICE_PASS={x:450,y:1700,label:'Xe phục vụ',area:'dining'};
 STATIONS.service=SERVICE_PASS;
 for(const t of DINING_TABLES){STATIONS['table'+t.id]={...t.point,label:'Bàn '+(t.id+1),area:'dining',requires:t.requires};SOLIDS.push({x:t.cx-70,y:t.cy-20,w:140,h:64,area:'dining',requires:t.requires});for(const seat of t.seats)SOLIDS.push({x:seat.x-12,y:seat.y-50,w:24,h:30,area:'dining',requires:t.requires});}
+SOLIDS.push({x:38,y:1600,w:130,h:58,area:'dining'},{x:200,y:1600,w:120,h:58,area:'dining'});
 SOLIDS.push({x:370,y:1610,w:160,h:48,area:'dining'});
 export const activeSolids=state=>SOLIDS.filter(r=>r.area!=='dining'||state?.upgrades.dining&&(!r.requires||state.upgrades[r.requires]));

@@ -1,9 +1,10 @@
+import{RESTAURANTS_EN}from'./restaurants-translations.js';
 import {VENUES_EN} from './venues-translations.js';
 import {GUIDE_EN} from './guide-translations.js';
 // Vietnamese source messages are stable IDs. Food/character/brand names remain proper names.
 import {CAREER_EN} from './career-translations.js';
 import {DINING_EN} from './dining-translations.js';
-export const EN={...VENUES_EN,...GUIDE_EN,...DINING_EN,...CAREER_EN,
+export const EN={...RESTAURANTS_EN,...VENUES_EN,...GUIDE_EN,...DINING_EN,...CAREER_EN,
 'Phố Ẩm Thực':'Phố Ẩm Thực','PHỐ ẨM THỰC':'PHỐ ẨM THỰC','PHỐ':'PHỐ',
 'Phố Ẩm Thực · Phố đang lớn':'Phố Ẩm Thực · A growing food street',
 'Từ một ổ bánh mì nóng, dựng nên góc phố của riêng bạn. Game quản lý quán ăn Việt Nam.':'Build your own food street, starting with a warm bánh mì. A Vietnamese food shop game.',

@@ -1,3 +1,4 @@
+import{restaurantId,jobHere,deliveryIds,welcomeIds,recordSale,newOffice,newWelcome,prepareRestaurant}from'./restaurants.js';
 import {hasPrize} from './venues.js';
 import {priceFor,isMoney,validBasis,legacyVnd} from './currency.js';
 import {STATIONS} from './world-layout.js';
@@ -13,7 +14,7 @@ export const tracksFor=role=>role==='owner'?['stride','carry','service']:['strid
 export function careerState(s=null){
  const stocked=s?Math.max(0,s.stats.stocked-s.stats.workerStocked-s.stats.workerPhoStocked):0;
  const xp={owner:Math.min(80,stocked+(s?.owner.takeaway.completed||0)*8),linh:Math.min(50,s?.stats.workerStocked||0),an:Math.min(50,s?.stats.workerPhoStocked||0),mai:Math.min(30,(s?.dining.stats.parties||0)*2)};
- return{roles:Object.fromEntries(ROLES.map(id=>[id,{xp:xp[id],levels:Object.fromEntries(tracksFor(id).map(k=>[k,0]))}])),spent:0,claimed:[],stats:{ownerDishes:0,ownerCleaned:0,officeCompleted:0,welcomeCompleted:0},contract:{round:0,start:0},office:{priceBasis:'current',active:false,left:0,cooldown:0,stage:0,delivered:foodBag(),completed:0,missed:0,bonus:0},welcome:{active:false,stage:0,left:0,progress:0,cooldown:0,kind:'market',startSold:0,completed:0,missed:0,last:0}};
+ return{roles:Object.fromEntries(ROLES.map(id=>[id,{xp:xp[id],levels:Object.fromEntries(tracksFor(id).map(k=>[k,0]))}])),spent:0,claimed:[],stats:{ownerDishes:0,ownerCleaned:0,officeCompleted:0,welcomeCompleted:0},contract:{round:0,start:0},office:newOffice(),welcome:newWelcome()};
 }
 export const level=(s,role,track)=>s.career?.roles[role]?.levels[track]||0;
 export const speedFactor=(s,role)=>[1,1.10,1.20,1.30][level(s,role,'stride')];
@@ -24,26 +25,31 @@ export function gainXP(s,role,amount){if(s.career&&Number.isSafeInteger(amount)&
 export function nextTraining(s,role,track){const r=s.career?.roles[role],l=r?.levels[track];if(l===undefined)return null;const who=CHARACTERS.find(c=>c.id===role);return{level:l,cost:TRACKS[track].cost[l]||0,xp:[20,70,180][l]||0,owned:!who.requires||!!s.upgrades[who.requires],max:l===3};}
 export function train(s,role,track,emit=()=>{}){const n=nextTraining(s,role,track);if(!n||n.max||!n.owned||s.money<n.cost||s.career.roles[role].xp<n.xp)return false;s.money-=n.cost;s.career.spent+=n.cost;s.career.roles[role].levels[track]++;emit('career',{text:'Đã luyện kỹ năng · Trang bị và hiệu quả làm việc đã thay đổi.'});return true;}
 const OFFICE_RECIPES=[{bread:3,tea:2,pho:0},{bread:0,tea:2,pho:2}];
-export const officeRecipe=s=>OFFICE_RECIPES[Math.min(1,s.career.office.stage)];
-export function officeRemaining(s){const q=s.career.office,r={bread:0,tea:0,pho:0};if(!q.active)return r;for(let i=q.stage;i<2;i++){r.bread+=OFFICE_RECIPES[i].bread;r.tea+=OFFICE_RECIPES[i].tea;r.pho+=OFFICE_RECIPES[i].pho;}r.bread-=q.delivered.banh+q.delivered.special;r.tea-=q.delivered.tea;r.pho-=q.delivered.pho;return r;}
-export function startOffice(s,emit=()=>{}){const q=s.career.office;if(s.day<2||!s.upgrades.pho||!s.upgrades.tea||!s.upgrades.worker||q.active||q.cooldown||s.owner.takeaway.active)return false;Object.assign(q,{priceBasis:'current',active:true,left:150,stage:0,delivered:foodBag()});emit('career',{text:'Đơn văn phòng · Hai điểm giao, có thể giao từng phần. Hàng luôn có nguồn thật.'});return true;}
-export function startWelcome(s,kind,emit=()=>{}){const q=s.career.welcome;if(!['market','office'].includes(kind)||s.day<2||!s.upgrades.worker||q.active||q.cooldown)return false;Object.assign(q,{active:true,stage:0,left:90,progress:0,kind});emit('career',{text:'Mời đoàn phố · Ghé điểm đầu hẻm rồi điểm văn phòng để đón khách.'});return true;}
-export const welcomeBoost=s=>s.career?.welcome.active&&s.career.welcome.stage===2;
-function handOffice(s,dt,emit){const q=s.career.office,a=s.player,p=q.stage===0?STATIONS.office:STATIONS.invite;if(Math.hypot(a.x-p.x,a.y-p.y)>43||a.action>0)return;
+export const officeRecipeAt=(s,stage)=>s.career.office.venue==='street'?OFFICE_RECIPES[Math.min(1,stage)]:s.career.office.venue==='pho'?{bread:0,tea:0,pho:stage?3:2}:s.career.office.venue==='dining'?OFFICE_RECIPES[Math.min(1,stage)]:stage?{bread:2,tea:1,pho:0}:OFFICE_RECIPES[0];
+export const officeRecipe=s=>officeRecipeAt(s,s.career.office.stage);
+export const officeStation=s=>deliveryIds(s,s.career.office)[Math.min(1,s.career.office.stage)];
+export const welcomeStation=s=>welcomeIds(s,s.career.welcome)[Math.min(1,s.career.welcome.stage)];
+export const welcomeTarget=s=>s.career.welcome.venue==='pho'?18:s.career.welcome.venue==='dining'?12:28;
+export const welcomeSold=s=>s.career.welcome.venue==='street'?s.sold-s.career.welcome.startSold:s.local.sold[s.career.welcome.venue]-s.career.welcome.localStart;
+export function officeRemaining(s){const q=s.career.office,r={bread:0,tea:0,pho:0};if(!q.active)return r;for(let i=q.stage;i<2;i++){const recipe=officeRecipeAt(s,i);r.bread+=recipe.bread;r.tea+=recipe.tea;r.pho+=recipe.pho;}r.bread-=q.delivered.banh+q.delivered.special;r.tea-=q.delivered.tea;r.pho-=q.delivered.pho;return r;}
+export function startOffice(s,emit=()=>{}){if(!prepareRestaurant(s))return false;const q=s.career.office;if(s.day<2||restaurantId(s)==='home'&&!s.upgrades.worker||q.active||q.cooldown||s.owner.takeaway.active)return false;Object.assign(q,{venue:restaurantId(s),priceBasis:'current',active:true,left:150,stage:0,delivered:foodBag()});emit('career',{text:'Đơn tại quán · Hai lượt nhận hàng, không cần đổi địa chỉ.'});return true;}
+export function startWelcome(s,kind,emit=()=>{}){if(!prepareRestaurant(s))return false;const q=s.career.welcome;if(!['market','office'].includes(kind)||s.day<2||q.active||q.cooldown)return false;Object.assign(q,{venue:restaurantId(s),localStart:s.local.sold[restaurantId(s)],active:true,stage:0,left:90,progress:0,kind});emit('career',{text:'Mời khách tại quán · Ghé hai điểm ngay trong địa chỉ này.'});return true;}
+export const welcomeBoost=s=>s.career?.welcome.active&&jobHere(s,s.career.welcome)&&s.career.welcome.stage===2;
+function handOffice(s,dt,emit){const q=s.career.office,a=s.player,p=STATIONS[officeStation(s)];if(Math.hypot(a.x-p.x,a.y-p.y)>43||a.action>0)return;
  const r=officeRecipe(s);for(const k of ['banh','special','tea','pho']){const need=k==='banh'||k==='special'?r.bread-q.delivered.banh-q.delivered.special:r[k]-q.delivered[k];if(need<=0||!a.bag[k])continue;
-  a.bag[k]--;q.delivered[k]++;a.action=.24*serviceFactor(s);const price=priceFor(k,q.priceBasis,s.owner.ice.freshLeft>0);s.money+=price;s.revenue+=price;s.sold++;s.served++;s.stats.collected+=price;s.stats[k==='pho'?'soldPho':k==='tea'?'soldTea':'soldBanh']++;s.career.stats.ownerDishes++;gainXP(s,'owner',2);emit('money',{...p,amount:price});break;
+  a.bag[k]--;q.delivered[k]++;a.action=.24*serviceFactor(s);const price=priceFor(k,q.priceBasis,s.owner.ice.freshLeft>0);recordSale(s,q.venue==='street'?restaurantId(s):q.venue,1,k);if(q.venue==='dining')s.local.earned.diningOwner++;s.money+=price;s.revenue+=price;s.sold++;s.served++;s.stats.collected+=price;s.stats[k==='pho'?'soldPho':k==='tea'?'soldTea':'soldBanh']++;s.career.stats.ownerDishes++;gainXP(s,'owner',2);emit('money',{...p,amount:price});break;
  }
  if(q.delivered.banh+q.delivered.special>=r.bread&&q.delivered.tea>=r.tea&&q.delivered.pho>=r.pho){q.stage++;q.delivered=foodBag();if(q.stage===2){const bonus=140000+Math.min(40000,Math.floor(q.left/15)*4000);q.active=false;q.cooldown=75;q.completed++;q.bonus+=bonus;s.career.stats.officeCompleted++;s.money+=bonus;s.stats.rewards+=bonus;gainXP(s,'owner',10);emit('career',{text:'Đã giao hai điểm · Nhận tiền thưởng và kinh nghiệm chủ quán.'});}else emit('career',{text:'Xong điểm văn phòng · Mang phần còn lại tới đầu hẻm.'});}
 }
-export function updateCareer(s,dt,emit){const c=s.career,q=c.office,w=c.welcome;q.cooldown=Math.max(0,q.cooldown-dt);w.cooldown=Math.max(0,w.cooldown-dt);
- if(q.active){q.left=Math.max(0,q.left-dt);handOffice(s,dt,emit);if(!q.left&&q.active){q.active=false;q.missed++;q.cooldown=45;emit('career',{text:'Đơn đã khép · Tiền phần đã giao và món còn trên tay đều được giữ.'});}}
- if(w.active){w.left=Math.max(0,w.left-dt);if(w.stage<2){const p=w.stage===0?STATIONS.invite:STATIONS.office;if(Math.hypot(s.player.x-p.x,s.player.y-p.y)<43){w.progress+=dt;if(w.progress>=1.2){w.stage++;w.progress=0;if(w.stage===2){w.left=70;w.startSold=s.sold;emit('career',{text:'Đoàn khách đã lên đường · Phân bổ quầy và bán 28 món trong 70 giây.'});}}}else w.progress=0;}
-  if(!w.left){w.active=false;w.last=w.stage===2?s.sold-w.startSold:0;w.cooldown=60;if(w.stage===2&&w.last>=28){w.completed++;c.stats.welcomeCompleted++;s.money+=80000;s.stats.rewards+=80000;gainXP(s,'owner',12);emit('career',{text:'Đón đoàn thành công · Quán có thêm uy tín nghề và tiền thưởng.'});}else{w.missed++;emit('career',{text:'Đoàn phố đã qua · Không mất tiền hay hàng, bạn có thể chuẩn bị rồi thử lại.'});}}}
+export function updateCareer(s,dt,emit){const c=s.career,q=c.office,w=c.welcome;if(q.venue==='street'||q.venue===restaurantId(s))q.cooldown=Math.max(0,q.cooldown-dt);if(w.venue==='street'||w.venue===restaurantId(s))w.cooldown=Math.max(0,w.cooldown-dt);
+ if(jobHere(s,q)){q.left=Math.max(0,q.left-dt);handOffice(s,dt,emit);if(!q.left&&q.active){q.active=false;q.missed++;q.cooldown=45;emit('career',{text:'Đơn đã khép · Tiền phần đã giao và món còn trên tay đều được giữ.'});}}
+ if(jobHere(s,w)){w.left=Math.max(0,w.left-dt);if(w.stage<2){const p=STATIONS[welcomeStation(s)];if(Math.hypot(s.player.x-p.x,s.player.y-p.y)<43){w.progress+=dt;if(w.progress>=1.2){w.stage++;w.progress=0;if(w.stage===2){w.left=70;w.startSold=s.sold;w.localStart=s.local.sold[w.venue]||0;emit('career',{text:'Đoàn khách đã lên đường · Phân bổ quầy và bán 28 món trong 70 giây.'});}}}else w.progress=0;}
+  if(!w.left){w.active=false;w.last=w.stage===2?welcomeSold(s):0;w.cooldown=60;if(w.stage===2&&w.last>=welcomeTarget(s)){w.completed++;c.stats.welcomeCompleted++;if(['dining','street'].includes(w.venue))s.local.earned.diningWelcome++;s.money+=80000;s.stats.rewards+=80000;gainXP(s,'owner',12);emit('career',{text:'Đón đoàn thành công · Quán có thêm uy tín nghề và tiền thưởng.'});}else{w.missed++;emit('career',{text:'Đoàn phố đã qua · Không mất tiền hay hàng, bạn có thể chuẩn bị rồi thử lại.'});}}}
 }
 export function careerGoals(s){const c=s.career,goals=[
  ['c-hands','Chủ quán vào guồng','Tự giao 12 món cho khách hoặc đơn văn phòng.',12,80,()=>c.stats.ownerDishes],
  ['c-clean','Bàn sạch nhờ bạn','Tự tay dọn 8 bàn để đón lượt khách mới.',8,80,()=>c.stats.ownerCleaned],
- ['c-office','Hai đầu phố','Hoàn tất 3 đơn văn phòng hai điểm giao.',3,140,()=>c.stats.officeCompleted],
+ ['c-office','Khách đặt quen mặt','Hoàn tất 3 đơn hai lượt ngay trong quán.',3,140,()=>c.stats.officeCompleted],
  ['c-welcome','Cả phố biết quán','Đón thành công 2 đoàn khách do bạn đi mời.',2,140,()=>c.stats.welcomeCompleted],
  ['c-owner','Đồ nghề xứng tay','Mua 4 bậc kỹ năng của chủ quán.',4,100,()=>Object.values(c.roles.owner.levels).reduce((a,b)=>a+b,0)],
  ['c-team','Đồng đội trưởng thành','Mua 6 bậc kỹ năng cho Linh, An hoặc Mai.',6,140,()=>trained(s)-Object.values(c.roles.owner.levels).reduce((a,b)=>a+b,0)],
@@ -58,5 +64,5 @@ export function validCareer(c){const int=n=>Number.isSafeInteger(n)&&n>=0&&n<=1e
  const spent=ROLES.reduce((sum,id)=>sum+tracksFor(id).reduce((n,k)=>n+TRACKS[k].cost.slice(0,c.roles[id].levels[k]).reduce((a,b)=>a+b,0),0),0);if(spent!==c.spent||Object.keys(c.roles).length!==4||ROLES.some(id=>Object.keys(c.roles[id].levels).length!==tracksFor(id).length))return false;
  if(!Array.isArray(c.claimed)||new Set(c.claimed).size!==c.claimed.length||c.claimed.some(id=>!['c-hands','c-clean','c-office','c-welcome','c-owner','c-team','c-master','c-specialists'].includes(id))||!c.contract||![c.contract.round,c.contract.start].every(int)||c.contract.start>c.stats.ownerDishes)return false;
  const q=c.office,w=c.welcome;if(!q||!w||![q.active,w.active].every(v=>typeof v==='boolean')||![q.left,q.cooldown,w.left,w.cooldown,w.progress].every(finite)||q.left>150||w.left>90||w.progress>1.2||![q.completed,q.missed,w.completed,w.missed,w.last,w.startSold].every(int)||!validBasis(q.priceBasis)||!isMoney(q.bonus)||!bag(q.delivered)||![0,1,2].includes(q.stage)||![0,1,2].includes(w.stage)||q.active&&q.stage===2||!['market','office'].includes(w.kind))return false;
- const r=OFFICE_RECIPES[Math.min(q.stage,1)];return q.delivered.banh+q.delivered.special<=r.bread&&q.delivered.tea<=r.tea&&q.delivered.pho<=r.pho;
+ if(!['home','pho','dining','street'].includes(q.venue)||!['home','pho','dining','street'].includes(w.venue)||!int(w.localStart))return false;const r=officeRecipeAt({career:c},Math.min(q.stage,1));return q.delivered.banh+q.delivered.special<=r.bread&&q.delivered.tea<=r.tea&&q.delivered.pho<=r.pho;
 }

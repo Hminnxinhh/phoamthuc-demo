@@ -1,10 +1,12 @@
+import{restaurantId,jobHere,legacyTrip,pantryDemand}from'./restaurants.js';
+import{officeStation,welcomeStation}from'./career.js';
 import{STATIONS}from'./world-layout.js';
 import{carryCapacity,officeRecipe,officeRemaining,careerGoal,careerGoals}from'./career.js';
 import{activeTables,needs}from'./dining.js';
 export const stationCaption=(s,id)=>id==='office'&&s.owner.takeaway.active&&s.owner.takeaway.venue==='pho'?'Cửa quán phở':STATIONS[id]?.label;
 export const NAVIGATION_KEY='pho-am-thuc.navigation';
 export const ZONES={home:'Quán bánh mì & trà',pho:'Sân phở',dining:'Sân ăn tại chỗ'};
-export function stationZone(id){return id==='office'||id.startsWith('pho')?'pho':id==='service'||id.startsWith('table')?'dining':'home';}
+export function stationZone(id){return id==='office'||id.startsWith('pho')?'pho':id==='service'||id.startsWith('dining')||id.startsWith('table')?'dining':'home';}
 export function stationUnlocked(s,id){if(!STATIONS[id])return false;if(stationZone(id)==='pho'&&!s.upgrades.pho)return false;if(stationZone(id)==='dining'&&!s.upgrades.dining)return false;if(id==='tea'&&!s.upgrades.tea||id==='table2'&&!s.upgrades.thirdTable)return false;return true;}
 const nearby=(s,id)=>Math.hypot(s.player.x-STATIONS[id].x,s.player.y-STATIONS[id].y)<43;
 const world=(id,label)=>({kind:'world',id,label,zone:stationZone(id)});
@@ -14,15 +16,15 @@ function supplyFood(s,kind){const b=s.player.bag;
  if(kind==='tea')return world('tea','Lấy hoặc pha trà tắc');
  if(s.stock.pho)return world('phoSale','Lấy phở ở quầy nâu');if(b.rawPho||s.phoKitchen.output.length||s.phoKitchen.job||s.phoKitchen.input)return world('phoKitchen','Chế biến và lấy phở nóng');return world('phoSupply','Lấy thịt và bánh phở');
 }
-export function nextAction(s){const b=s.player.bag,cap=carryCapacity(s),full=Object.values(b).reduce((n,v)=>n+v,0)>=cap,o=s.career.office,w=s.career.welcome,q=s.owner.takeaway,ice=s.owner.ice;
+function streetNextAction(s){const b=s.player.bag,cap=carryCapacity(s),full=Object.values(b).reduce((n,v)=>n+v,0)>=cap,o=s.career.office,w=s.career.welcome,q=s.owner.takeaway,ice=s.owner.ice;
  if(b.ice)return world('tea','Mang thùng đá đến quầy trà');
  if(b.raw)return world('kitchen','Giao nguyên liệu cho bếp bánh');if(b.rawPho)return world('phoKitchen','Giao nguyên liệu cho nồi phở');
  if(full&&(o.active||q.active)){const r=o.active?officeRemaining(s):q.recipe;if(b.banh+b.special>r.bread)return world('sale','Bày bánh dư để có chỗ nhận món');if(b.tea>r.tea)return world('tea','Trả ly dư để có chỗ nhận món');if(b.pho>r.pho)return world('phoSale','Bày phở dư để có chỗ nhận món');}
- if(o.active){const r=officeRecipe(s),n={bread:Math.max(0,r.bread-o.delivered.banh-o.delivered.special),tea:Math.max(0,r.tea-o.delivered.tea),pho:Math.max(0,r.pho-o.delivered.pho)},have={bread:b.banh+b.special,tea:b.tea,pho:b.pho},delivery=o.stage===0?'office':'invite';
+ if(o.active){const r=officeRecipe(s),n={bread:Math.max(0,r.bread-o.delivered.banh-o.delivered.special),tea:Math.max(0,r.tea-o.delivered.tea),pho:Math.max(0,r.pho-o.delivered.pho)},have={bread:b.banh+b.special,tea:b.tea,pho:b.pho},delivery=officeStation(s);
   if((have.bread>=n.bread&&have.tea>=n.tea&&have.pho>=n.pho)||full&&Object.keys(n).some(k=>n[k]&&have[k]))return world(delivery,o.stage===0?'Giao phần ăn tại văn phòng':'Giao phần ăn tại đầu hẻm');
   const missing=Object.keys(n).filter(k=>have[k]<n[k]);if(missing.length)return supplyFood(s,missing[0]);
  }
- if(w.active&&w.stage<2)return world(w.stage===0?'invite':'office',w.stage===0?'Dừng chào khách ở đầu hẻm':'Dừng chào khách ở văn phòng');
+ if(w.active&&w.stage<2)return world(welcomeStation(s),w.stage===0?'Dừng chào khách ở đầu hẻm':'Dừng chào khách ở văn phòng');
  if(q.active){const r=q.recipe;if(b.banh+b.special<r.bread)return supplyFood(s,'bread');if(b.tea<r.tea)return supplyFood(s,'tea');if(b.pho<r.pho)return supplyFood(s,'pho');return world(q.venue==='pho'?'office':'pickup',q.venue==='pho'?'Giao đơn phở tại cửa quán':'Giao đơn tại điểm túi giấy');}
  if(ice.active)return world('supply','Nhận thùng đá tại kho rau');
  if(s.upgrades.dining){const tables=activeTables(s),waiting=tables.filter(t=>t.state==='waiting'&&(!s.dining.waiter||!s.dining.assignment.includes(t.id))).sort((a,b)=>a.waitLeft-b.waitLeft),target=waiting.find(t=>t.id===s.dining.focus)||waiting[0];
@@ -46,18 +48,35 @@ export function nextAction(s){const b=s.player.bag,cap=carryCapacity(s),full=Obj
  }
  if(s.kitchen.output.length||s.kitchen.job||s.kitchen.input)return world('kitchen','Chế biến và lấy bánh nóng');return world('supply','Lấy nguyên liệu làm bánh');
 }
+export function nextAction(s){
+ if(!s.local||legacyTrip(s))return streetNextAction(s);
+ const here=restaurantId(s),b=s.player.bag,q=s.owner.takeaway,o=s.career.office,w=s.career.welcome,worldJob=jobHere(s,o),parcel=jobHere(s,q),full=Object.values(b).reduce((n,v)=>n+v,0)>=carryCapacity(s);
+ if(jobHere(s,w)&&w.stage<2)return world(welcomeStation(s),'Chào khách ngay tại quán');
+ if(here==='dining'){
+  const p=s.local.pantry,tables=activeTables(s),waiting=tables.filter(t=>t.state==='waiting'&&(!s.dining.waiter||!s.dining.assignment.includes(t.id))).sort((a,b)=>a.waitLeft-b.waitLeft),target=waiting.find(t=>t.id===s.dining.focus)||waiting[0];
+  if(b.raw||b.rawPho)return world('diningKitchen','Giao giỏ thực phẩm cho bếp tại sân');
+  if(worldJob){const r=officeRecipe(s),done=o.delivered,matching=(b.banh+b.special>0&&done.banh+done.special<r.bread)||(b.tea>0&&done.tea<r.tea)||(b.pho>0&&done.pho<r.pho);if(matching)return world(officeStation(s),'Giao đơn ngay tại sân ăn');if(Object.values(b).some(n=>n)||s.dining.buffer.banh+s.dining.buffer.special+s.dining.buffer.tea+s.dining.buffer.pho>0)return world('service','Gom món cho đơn tại sân');}
+  if(Math.hypot(s.player.x-260,s.player.y-1700)<43&&!full&&(p.input||p.job||p.output.length))return world('diningKitchen','Nhận món từ bếp riêng tại sân');
+  if(target&&Object.keys(needs(target)).some(k=>b[k]&&needs(target)[k]))return world('table'+target.id,'Giao món cho bàn đang chờ');
+  const dirty=tables.find(t=>(t.state==='dirty'||t.coins>0)&&(!s.dining.waiter||!s.dining.assignment.includes(t.id)));if(dirty)return world('table'+dirty.id,'Thu tiền và lau bàn');
+  if(Object.values(b).some(n=>n)&&!worldJob)return world('service','Bày món lên xe của sân ăn');
+  if(target&&Object.keys(needs(target)).some(k=>needs(target)[k]&&s.dining.buffer[k]>0))return world('service','Gom món ở xe phục vụ');
+  if(p.output.length||p.input||p.job)return world('diningKitchen','Nhận món từ bếp riêng tại sân');
+  if(Object.values(pantryDemand(s)).some(n=>n>0)&&!s.upgrades.diningPrep)return world('diningSupply','Lấy giỏ thực phẩm tại kho của sân');
+  return panel('Chăm bàn và nhận việc tại sân ăn','missions-panel','tables');
+ }
+ if(worldJob||parcel||b.raw||b.rawPho||b.banh||b.special||b.pho||b.ice)return streetNextAction({...s,owner:{...s.owner,takeaway:{...q,active:parcel}},career:{...s.career,office:{...o,active:worldJob},welcome:{...w,active:jobHere(s,w)}},upgrades:{...s.upgrades,dining:false}});
+ if(here==='pho'){if(s.phoTill&&!s.worker2)return world('phoSale','Thu tiền tại quầy phở');if(!s.worker2)return world(s.phoKitchen.output.length||s.phoKitchen.job||s.phoKitchen.input?'phoKitchen':'phoSupply','Chuẩn bị phở ngay tại quán');return panel('Nhận đơn phở và chăm quán hiện tại','journal-panel');}
+ if(s.till&&!s.worker)return world('sale','Thu tiền tại quầy bánh');if(s.upgrades.tea&&!s.upgrades.teaAuto&&s.stock.tea<8)return world('tea','Pha thêm trà cho khách');if(!s.worker)return streetNextAction({...s,upgrades:{...s.upgrades,dining:false}});return panel('Nhận việc cho quán bánh mì hiện tại','missions-panel','jobs');
+}
 // A route is presentation state. It never moves an actor, spends currency or edits a save.
 export class Navigator{
  constructor(findPath){this.findPath=findPath;this.enabled=true;this.manual=null;this.key='';this.path=[];}
- choose(s,id){if(!stationUnlocked(s,id))return false;this.manual=id;this.enabled=true;this.key='';return true;}
+ choose(s,id){if(!stationUnlocked(s,id)||!legacyTrip(s)&&stationZone(id)!==restaurantId(s))return false;this.manual=id;this.key='';return true;}
  update(s){let task=this.manual?world(this.manual,'Đi tới '+stationCaption(s,this.manual)):nextAction(s);
   if(task.kind==='world'&&!stationUnlocked(s,task.id))task=panel('Mở khu vực trong Phát triển','shop-panel',stationZone(task.id)==='dining'?'dining':'growth');
   if(task.kind!=='world'){this.key='';this.path=[];return{...task,enabled:this.enabled,path:[]};}
-  const target={...STATIONS[task.id],label:stationCaption(s,task.id)},key=task.id+'|'+!!s.upgrades.pho+'|'+!!s.upgrades.dining+'|'+!!s.upgrades.thirdTable;
-  let nearest=0,distance=Infinity;for(let i=0;i<this.path.length;i++){const d=Math.hypot(s.player.x-this.path[i].x,s.player.y-this.path[i].y);if(d<distance){distance=d;nearest=i;}}
-  if(this.key!==key||distance>75){this.path=this.findPath(s.player,target,s);this.key=key;nearest=0;}
-  if(nearest>0)this.path=this.path.slice(nearest);while(this.path.length>1&&Math.hypot(s.player.x-this.path[0].x,s.player.y-this.path[0].y)<20)this.path.shift();
-  const path=[{x:s.player.x,y:s.player.y},...this.path],length=path.slice(1).reduce((n,p,i)=>n+Math.hypot(p.x-path[i].x,p.y-path[i].y),0),reached=Math.hypot(s.player.x-target.x,s.player.y-target.y)<43;
+  const target={...STATIONS[task.id],label:stationCaption(s,task.id)},path=[],length=0,reached=Math.hypot(s.player.x-target.x,s.player.y-target.y)<43;
   const result={...task,target,enabled:this.enabled,path,steps:Math.ceil(length/32),reached};if(this.manual&&reached){this.manual=null;this.key='';}return result;
  }
 }

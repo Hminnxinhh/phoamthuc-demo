@@ -1,5 +1,6 @@
 import {decode,encode} from './model.js';
-export const SAVE_KEY='pho-am-thuc.save.v6';
+export const SAVE_KEY='pho-am-thuc.save.v7';
+export const VENUES_KEY='pho-am-thuc.save.v6';
 export const CURRENCY_KEY='pho-am-thuc.save.v5';
 export const CAREER_KEY='pho-am-thuc.save.v4';
 export const MILESTONE3_KEY='pho-am-thuc.save.v3';
@@ -9,6 +10,8 @@ export function loadProgress(storage){
   try{
     const current=storage.getItem(SAVE_KEY);
     if(current!==null){const state=decode(current);return state?{state,migrated:false}:{state:null,error:'Bản lưu hiện tại chưa đọc được. Dữ liệu được giữ nguyên.',raw:current};}
+    const venues=storage.getItem(VENUES_KEY);
+    if(venues!==null){const state=decode(venues);return state?{state,migrated:true,raw:venues}:{state:null,error:'Bản lưu 0.7 chưa đọc được. Dữ liệu được giữ nguyên.',raw:venues};}
     const currency=storage.getItem(CURRENCY_KEY);
     if(currency!==null){const state=decode(currency);return state?{state,migrated:true,raw:currency}:{state:null,error:'Bản lưu 0.6 chưa đọc được. Dữ liệu được giữ nguyên.',raw:currency};}
     const fourth=storage.getItem(CAREER_KEY);
@@ -28,4 +31,4 @@ export function saveProgress(storage,state){
   // Legacy key is deliberately never overwritten or removed. Migration is one-way.
   storage.setItem(SAVE_KEY,data);
 }
-export function backupCurrent(storage){const raw=storage.getItem(SAVE_KEY);if(raw!==null)storage.setItem('pho-am-thuc.backup.v6',raw);}
+export function backupCurrent(storage){const raw=storage.getItem(SAVE_KEY);if(raw!==null)storage.setItem('pho-am-thuc.backup.v7',raw);}

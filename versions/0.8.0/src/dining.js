@@ -1,0 +1,136 @@
+import{restaurantId,jobHere,recordSale}from'./restaurants.js';
+import {hasPrize,venueBonus,festivalUnlocked} from './venues.js';
+import {formatVnd} from './currency.js';
+import {PRICE,priceFor,isMoney,validBasis} from './currency.js';
+import {carryCapacity,speedFactor,serviceFactor,gainXP,level,officeRecipe} from './career.js';
+import{DINING_TABLES,SERVICE_PASS}from'./world-layout.js';
+export const FOODS=['banh','special','tea','pho'];export const FOOD_PRICE=PRICE;
+export const foodBag=()=>({banh:0,special:0,tea:0,pho:0});
+const total=b=>Object.values(b).reduce((n,v)=>n+v,0),near=(a,p,r=43)=>Math.hypot(a.x-p.x,a.y-p.y)<r;
+export const GUEST_TYPES={
+ regular:{label:'Khách quen',icon:'♥',people:1,patience:78,eat:14,order:()=>({banh:0,special:0,tea:1,pho:1}),look:6},
+ hurry:{label:'Khách vội',icon:'⌛',people:1,patience:48,eat:9,order:()=>({banh:0,special:0,tea:1,pho:1}),look:2},
+ friends:{label:'Nhóm bạn',icon:'☻',people:2,patience:95,eat:18,order:()=>({banh:2,special:0,tea:2,pho:0}),look:3},
+};
+export const DINING_UPGRADES=[
+ {id:'dining',cost:760000,icon:'🍽',name:'Mở sân ăn tại chỗ',description:'Hai bàn, xe phục vụ và khách ngồi ăn thật.',day:3,requires:'pho',section:'dining'},
+ {id:'diningPrep',cost:440000,icon:'♨',name:'Bếp phụ tại sân',description:'Bếp riêng tự nhận thực phẩm, nấu theo đơn và chuyển món lên xe.',requires:'dining',section:'dining',condition:s=>s.dining.stats.parties>=3,lock:'Phục vụ 3 bàn trước'},
+ {id:'thirdTable',cost:520000,icon:'▦',name:'Thêm bàn thứ ba',description:'Đón thêm một nhóm khách · Thêm chỗ điều phối.',requires:'dining',section:'dining',condition:s=>s.dining.stats.parties>=3,lock:'Phục vụ 3 bàn trước'},
+ {id:'waiter',cost:720000,icon:'👩🏻‍🍳',name:'Mời Mai phục vụ bàn',description:'Mai lấy món, phục vụ, thu và dọn một bàn được giao.',requires:'dining',section:'dining',condition:s=>s.dining.stats.parties>=2,lock:'Phục vụ 2 bàn trước'},
+ {id:'serviceCart',cost:360000,icon:'⚡',name:'Xe phục vụ nhanh',description:'Mai đi nhanh, mang 7 món và phụ tối đa hai bàn.',requires:'waiter',section:'dining'},
+ {id:'canopy',cost:440000,icon:'🏮',name:'Đèn lồng & bóng mát',description:'Khách đợi thêm 15 giây · Sân ấm áp, tip nhỉnh hơn.',requires:'dining',section:'dining',condition:s=>s.dining.reputation>=28,lock:'Cần 28 uy tín'},
+];
+export function diningState(){const stats={parties:0,cleaned:0,abandoned:0,turnaways:0,dishes:0,revenue:0,tips:0,regular:0,hurry:0,friends:0,events:0};return{day:3,startedAt:null,openedAt:null,dayBase:{...stats},claimed:[],history:[],reputation:0,loyalVisits:0,focus:null,assignment:[0],waiter:null,buffer:foodBag(),spawnTimer:4,nextParty:1,navVersion:0,waiting:null,guests:[],tables:DINING_TABLES.map(t=>({id:t.id,priceBasis:'current',greeted:false,state:'empty',party:null,order:foodBag(),delivered:foodBag(),base:0,settled:false,coins:0,waitLeft:0,waitMax:0,eatLeft:0,clean:0,kind:'regular',servedIn:0})),stats,event:{festival:false,active:false,left:0,cooldown:0,serial:0,start:0,best:0,last:0,target:3,kind:'hurry'}};}
+export const activeTables=s=>s.dining.tables.filter(t=>t.id<2||s.upgrades.thirdTable);
+export function needs(t){return Object.fromEntries(FOODS.map(k=>[k,Math.max(0,t.order[k]-t.delivered[k])]));}
+export function unpaidMeals(s){const b=foodBag();for(const t of s.dining.tables)if(!t.settled)for(const k of FOODS)b[k]+=t.delivered[k];return b;}
+export function diningCoins(s){return s.dining.tables.reduce((n,t)=>n+t.coins,0);}
+export function selectTable(s,id){const t=activeTables(s).find(t=>t.id===id);if(!t)return false;s.dining.focus=id;return true;}
+export function assignTable(s,id){if(!s.dining.waiter||!activeTables(s).some(t=>t.id===id))return false;const list=s.dining.assignment,index=list.indexOf(id);if(index>=0)list.splice(index,1);else{const cap=s.upgrades.serviceCart?(level(s,'mai','carry')===3?3:2):1;if(list.length>=cap)list.shift();list.push(id);}s.dining.waiter.path=[];return true;}
+export function diningUpgrade(s,id,emptyBag){const d=s.dining;if(id==='dining'){d.openedAt=s.elapsed;d.spawnTimer=3;}if(id==='thirdTable')d.navVersion++;if(id==='waiter')d.waiter={x:480,y:1740,step:0,face:-1,action:0,bag:emptyBag(),name:'MAI',serviceRole:true,path:[],target:null};}
+function newParty(s,kind,env){const d=s.dining,p=GUEST_TYPES[kind],id=d.nextParty++,order=p.order();return{id,kind,order,people:p.people};}
+function reserve(s,table,party){const d=s.dining;if(d.focus===table.id)d.focus=null;const p=GUEST_TYPES[party.kind];Object.assign(table,{priceBasis:'current',greeted:false,state:'seating',party:party.id,order:{...party.order},delivered:foodBag(),base:0,settled:false,waitLeft:p.patience+(s.upgrades.canopy?15:0)+(s.places?.claimed.dining.length||0),waitMax:p.patience+(s.upgrades.canopy?15:0)+(s.places?.claimed.dining.length||0),eatLeft:p.eat,clean:0,kind:party.kind,servedIn:0});for(const g of d.guests.filter(g=>g.party===party.id)){g.table=table.id;g.phase='enter';g.path=[];}}
+function spawn(s,party){const d=s.dining,p=GUEST_TYPES[party.kind];for(let i=0;i<party.people;i++)d.guests.push({id:party.id*2+i,party:party.id,seat:i,table:null,x:550,y:1770+i*36,step:0,face:-1,action:0,look:p.look+i,kind:party.kind,phase:'queue',path:[]});}
+function settle(s,t,full,emit){if(t.settled)return;const d=s.dining,items=total(t.delivered);t.settled=true;const speed=Math.max(0,t.waitLeft/Math.max(1,t.waitMax));const rounding=t.priceBasis==='legacy'?2000:1000;let tip=full?Math.floor(t.base*(.05+speed*.08+(s.upgrades.canopy?.02:0))/rounding)*rounding:0;
+ if(full&&t.kind==='regular'){d.loyalVisits++;if(d.loyalVisits%3===0)tip+=6000;}const bill=t.base+tip;t.coins+=bill;recordSale(s,'dining',items);s.revenue+=bill;s.sold+=items;s.served+=items?1:0;s.stats.soldBanh+=t.delivered.banh+t.delivered.special;s.stats.soldTea+=t.delivered.tea;s.stats.soldPho+=t.delivered.pho;d.stats.revenue+=bill;d.stats.tips+=tip;d.stats.dishes+=items;
+ if(full){d.stats.parties++;d.stats[t.kind]++;d.reputation+=t.kind==='regular'?3:2;}else{d.stats.abandoned++;d.reputation=Math.max(0,d.reputation-1);}t.state='leaving';for(const g of d.guests.filter(g=>g.party===t.party)){g.phase='leave';g.seated=false;g.holding=null;g.path=[];}if(bill)emit('sold',{x:DINING_TABLES[t.id].cx,y:DINING_TABLES[t.id].cy,amount:bill});}
+function collect(s,t,emit){if(!t.coins)return;const amount=t.coins;t.coins=0;s.money+=amount;s.stats.collected+=amount;emit('money',{...DINING_TABLES[t.id].point,amount});}
+export function interactTable(s,a,t,dt,emit){const d=s.dining;if(!near(a,DINING_TABLES[t.id].point,46))return false;collect(s,t,emit);
+ if(a===s.player&&!t.greeted&&['waiting','eating'].includes(t.state)&&hasPrize(s,'dining','s-team')){t.greeted=true;t.waitLeft=Math.min(t.waitMax,t.waitLeft+6);d.reputation++;gainXP(s,'owner',2);emit('dining',{text:GUEST_STORIES[t.kind]});}
+ if(t.state==='dirty'){t.clean+=dt/(a===s.player?serviceFactor(s):1)*(hasPrize(s,'dining','s-clean')?1.2:1);a.action=.06;if(t.clean>=1.5){t.state='empty';t.party=null;t.delivered=foodBag();t.order=foodBag();t.base=0;t.settled=false;t.clean=0;d.stats.cleaned++;if(a===s.player){s.career.stats.ownerCleaned++;s.local.earned.diningClean++;gainXP(s,'owner',3);}else gainXP(s,'mai',3);emit('clean',{...DINING_TABLES[t.id].point});}return true;}
+ if(t.state!=='waiting'||a.action>0)return false;for(const k of FOODS)if(a.bag[k]>0&&t.delivered[k]<t.order[k]){a.bag[k]--;t.delivered[k]++;if(a===s.player){s.career.stats.ownerDishes++;s.local.earned.diningOwner++;gainXP(s,'owner',2);}else gainXP(s,'mai',4);t.base+=priceFor(k,t.priceBasis,s.owner.ice.freshLeft>0);a.action=.26*(a===s.player?serviceFactor(s):1);emit('drop',{x:DINING_TABLES[t.id].cx,y:DINING_TABLES[t.id].cy,kind:k});if(total(needs(t))===0){t.state='eating';if(a===s.player)d.focus=null;t.servedIn=t.waitMax-t.waitLeft;for(const g of d.guests.filter(g=>g.party===t.party)){g.phase='eat';g.holding=t.kind==='friends'?'banh':'pho';}emit('dining',{text:'Đủ món rồi · Khách bắt đầu dùng bữa.'});}return true;}return false;}
+function pass(s,a,t,cap,emit){if(a.action>0)return;const d=s.dining,needed=t?needs(t):foodBag();for(const k of FOODS){if(a.bag[k]>needed[k]){a.bag[k]--;d.buffer[k]++;a.action=.22;emit('drop',{x:SERVICE_PASS.x,y:SERVICE_PASS.y-30,kind:k});return;}}
+ if(total(a.bag)>=cap)return;for(const k of FOODS)if(a.bag[k]<needed[k]){const source=d.buffer;if(source[k]>0){source[k]--;a.bag[k]++;a.action=.24;emit('pickup',{x:a.x,y:a.y,kind:k});return;}}}
+export function focusedTable(s){const d=s.dining;return activeTables(s).find(t=>t.id===d.focus&&t.state==='waiting')||activeTables(s).filter(t=>t.state==='waiting'&&(!d.waiter||!d.assignment.includes(t.id))).sort((a,b)=>a.waitLeft-b.waitLeft)[0]||null;}
+export function interactDining(s,a,dt,emit){if(!s.upgrades.dining||a!==s.player)return;for(const t of activeTables(s))if(near(a,DINING_TABLES[t.id].point,46)){if(t.state==='waiting')s.dining.focus=t.id;interactTable(s,a,t,dt,emit);}if(near(a,SERVICE_PASS)&&!jobHere(s,s.owner.takeaway)){let target=focusedTable(s);if(jobHere(s,s.career.office)){const r=officeRecipe(s),done=s.career.office.delivered;target={order:{banh:Math.max(0,r.bread-done.banh-done.special),special:0,tea:Math.max(0,r.tea-done.tea),pho:Math.max(0,r.pho-done.pho)},delivered:foodBag()};}pass(s,a,target,carryCapacity(s),emit);}}
+export function startDiningEvent(s,emit=()=>{}){const d=s.dining,e=d.event;if(!s.upgrades.dining||e.active||e.cooldown>0||d.stats.parties<2)return false;e.festival=false;e.kind=['hurry','friends','regular'][e.serial%3];e.serial++;e.active=true;e.left=e.kind==='hurry'?90:110;e.start=d.stats.parties;e.target=e.kind==='regular'?4:3;d.spawnTimer=0;emit('dining',{text:'Ca đặc biệt bắt đầu · Hãy chọn bàn ưu tiên.'});return true;}
+export function diningQuests(s){const d=s.dining,delta=k=>Math.max(0,d.stats[k]-d.dayBase[k]);if(s.day<3)return[];if(d.day===3)return[
+ {id:'d-open',icon:'🍽',title:'Mời khách ngồi lại',description:'Mở sân ăn với hai bàn thật.',max:1,reward:160000,value:()=>+!!s.upgrades.dining},
+ {id:'d-serve',icon:'♨',title:'Bữa đầu ấm bụng',description:'Phục vụ trọn vẹn 8 bàn ăn.',max:8,reward:240000,value:()=>delta('parties')},
+ {id:'d-clean',icon:'✧',title:'Bàn sạch đón khách',description:'Dọn 4 bàn sau khi khách rời đi.',max:4,reward:200000,value:()=>delta('cleaned')},
+ {id:'d-team',icon:'☻',title:'Có Mai cùng lo',description:'Thuê Mai và giao một bàn cho bạn ấy.',max:1,reward:200000,value:()=>+(!!d.waiter&&d.assignment.length>0)},
+ ];return[
+ {id:'d-serve',icon:'🍽',title:'Nhịp phố mỗi ngày',description:'Phục vụ trọn vẹn các bàn trong ngày.',max:8+Math.min(4,d.day-4),reward:240000,value:()=>delta('parties')},
+ {id:'d-types',icon:'☻',title:'Mỗi khách một câu chuyện',description:'Phục vụ khách quen, khách vội và nhóm bạn.',max:3,reward:180000,value:()=>['regular','hurry','friends'].filter(k=>delta(k)>0).length},
+ {id:'d-clean',icon:'✧',title:'Bàn sạch đón khách',description:'Dọn 6 bàn trong ngày.',max:6,reward:180000,value:()=>delta('cleaned')},
+ {id:'d-shift',icon:'☀',title:'Một ca đáng nhớ',description:'Hoàn thành một ca đặc biệt tùy chọn.',max:1,reward:240000,value:()=>delta('events')},
+ ];}
+export function claimDiningQuest(s,id,emit=()=>{}){const d=s.dining,q=diningQuests(s).find(q=>q.id===id);if(!q||d.claimed.includes(id)||q.value()<q.max)return false;d.claimed.push(id);s.money+=q.reward;s.stats.rewards+=q.reward;emit('reward',{text:`${q.title} · +${formatVnd(q.reward)}`,amount:q.reward});if(d.claimed.length===4){d.history.push({day:d.day,parties:d.stats.parties-d.dayBase.parties,revenue:d.stats.revenue-d.dayBase.revenue});if(d.history.length>30)d.history.shift();d.day++;s.day=d.day;d.dayBase={...d.stats};d.claimed=[];emit('dining',{text:'Ngày mới đã mở · Tiếp tục câu chuyện của sân ăn.'});}return true;}
+export function diningGoal(s){if(s.day<3)return null;if(!s.upgrades.dining)return{text:'Mở sân ăn tại chỗ · 760.000đ',value:s.money,max:760000,money:true,station:'shop'};const q=diningQuests(s).find(q=>!s.dining.claimed.includes(q.id));return q?{text:q.title,value:q.value(),max:q.max,quest:q.id}:null;}
+export function updateDining(s,dt,emit,env){const d=s.dining;if(s.day2.completed&&s.day<3){s.day=3;d.startedAt=s.elapsed;d.dayBase={...d.stats};emit('dining',{text:'Ngày 03 · Mời cả phố ngồi lại dùng bữa!'});}if(!s.upgrades.dining||restaurantId(s)!=='dining')return;
+ d.spawnTimer=Math.max(0,d.spawnTimer-dt);const e=d.event;e.cooldown=Math.max(0,e.cooldown-dt);if(e.active){e.left=Math.max(0,e.left-dt);if(!e.left){e.active=false;e.last=d.stats.parties-e.start;e.best=Math.max(e.best,e.last);e.cooldown=45;if(e.last>=e.target){d.stats.events++;emit('dining',{text:'Ca đặc biệt thành công · Cùng giữ nhịp quán nhé!'});}else emit('dining',{text:'Ca đã khép lại · Chuẩn bị hàng rồi thử lại, không mất tiến độ.'});}}
+ if(d.spawnTimer<=0&&!d.waiting&&d.guests.length<7){d.spawnTimer=e.active?8:14;const kind=e.active?e.kind:['regular','hurry','friends'][Math.floor(env.random()*3)],party=newParty(s,kind,env);if(d.guests.length+party.people<=8){spawn(s,party);const t=activeTables(s).find(t=>t.state==='empty');if(t)reserve(s,t,party);else d.waiting={...party,left:16};}}
+ if(d.waiting){const t=activeTables(s).find(t=>t.state==='empty');if(t){reserve(s,t,d.waiting);d.waiting=null;}else{d.waiting.left-=dt;if(d.waiting.left<=0){for(const g of d.guests.filter(g=>g.party===d.waiting.id))g.phase='leave';d.stats.turnaways++;d.waiting=null;}}}
+ for(const g of d.guests){g.moving=false;const t=g.table===null?null:d.tables[g.table];if(g.phase==='enter'){const seat=DINING_TABLES[g.table].seats[g.seat];if(env.walk(g,seat,g.kind==='hurry'?105:80)){g.phase='wait';g.seated=true;g.dirX=g.seat?-.25:.25;g.dirY=1;}}
+  else if(g.phase==='leave')env.walk(g,{x:550,y:1770+g.seat*36},100);}
+ d.guests=d.guests.filter(g=>!(g.phase==='leave'&&near(g,{x:550,y:1770+g.seat*36},9)));
+ for(const t of activeTables(s)){
+  if(t.state==='seating'){const guests=d.guests.filter(g=>g.party===t.party);if(guests.length&&guests.every(g=>g.phase==='wait'))t.state='waiting';}
+  else if(t.state==='waiting'){t.waitLeft=Math.max(0,t.waitLeft-dt);if(!t.waitLeft)settle(s,t,false,emit);}
+  else if(t.state==='eating'){t.eatLeft=Math.max(0,t.eatLeft-dt);if(!t.eatLeft)settle(s,t,true,emit);}
+  else if(t.state==='leaving'&&!d.guests.some(g=>g.party===t.party&&near(g,{x:DINING_TABLES[t.id].cx,y:DINING_TABLES[t.id].cy-40},90)))t.state='dirty';
+ }
+ const w=d.waiter;if(w){
+  w.action=Math.max(0,w.action-dt);w.moving=false;
+  const assigned=activeTables(s).filter(t=>d.assignment.includes(t.id)),waiting=assigned.filter(t=>t.state==='waiting').sort((a,b)=>a.waitLeft-b.waitLeft);
+  const canServe=t=>FOODS.some(k=>needs(t)[k]>0&&(w.bag[k]>0||d.buffer[k]>0));
+  const t=waiting.find(table=>FOODS.some(k=>w.bag[k]>0&&needs(table)[k]>0))||waiting.find(canServe)||assigned.find(t=>t.state==='dirty'||t.coins>0)||waiting[0];w.target=t?.id??null;
+  const have=t&&FOODS.some(k=>w.bag[k]>0&&needs(t)[k]>0),cap=carryCapacity(s,'mai');
+  const batch=foodBag();for(const table of waiting)for(const k of FOODS)batch[k]+=needs(table)[k];
+  const load={order:batch,delivered:foodBag()},space=total(w.bag)<cap;
+  const available=FOODS.some(k=>w.bag[k]<batch[k]&&d.buffer[k]>0);
+  const loading=near(w,SERVICE_PASS)&&space&&available;
+  const deliver=t&&(t.state==='dirty'||t.coins>0||have&&!loading);
+  const dest=deliver?{x:DINING_TABLES[t.id].point.x+26,y:DINING_TABLES[t.id].point.y}:{x:SERVICE_PASS.x+26,y:SERVICE_PASS.y};
+  if(env.walk(w,dest,(s.upgrades.serviceCart?140:105)*speedFactor(s,'mai'))){
+   if(deliver&&near(w,DINING_TABLES[t.id].point,46))interactTable(s,w,t,dt,emit);
+   else pass(s,w,waiting.length?load:null,cap,emit);
+  }
+ }
+
+}
+// Validate persisted reservations and settlement state before accepting an import.
+// Render-only paths/poses are discarded on decode and never authorize transactions.
+export function validDining(d,s,blocked){
+ const int=n=>Number.isSafeInteger(n)&&n>=0&&n<=1e9,finite=n=>Number.isFinite(n)&&n>=0;
+ const bag=b=>b&&FOODS.every(k=>int(b[k])),id=n=>Number.isInteger(n)&&n>=0&&n<3;
+ if(!d||!int(d.day)||d.day<3||!int(d.reputation)||!int(d.loyalVisits)||!int(d.nextParty)||!d.nextParty||!int(d.navVersion)||!finite(d.spawnTimer)||!bag(d.buffer))return false;
+ if(!Array.isArray(d.tables)||d.tables.length!==3||!Array.isArray(d.guests)||d.guests.length>8||!Array.isArray(d.assignment)||new Set(d.assignment).size!==d.assignment.length||d.assignment.length>(s.upgrades.serviceCart?(level(s,'mai','carry')===3?3:2):1)||d.assignment.some(n=>!id(n)||n===2&&!s.upgrades.thirdTable))return false;
+ if(d.focus!==null&&(!id(d.focus)||d.focus===2&&!s.upgrades.thirdTable)||![d.startedAt,d.openedAt].every(v=>v===null||finite(v)&&v<=s.elapsed))return false;
+ if(!d.stats||!d.dayBase||!Object.keys(diningState().stats).every(k=>(['revenue','tips'].includes(k)?isMoney:int)(d.stats[k])&&(['revenue','tips'].includes(k)?isMoney:int)(d.dayBase[k])&&d.dayBase[k]<=d.stats[k]))return false;
+ if(d.stats.regular+d.stats.hurry+d.stats.friends!==d.stats.parties||d.stats.tips>d.stats.revenue)return false;
+ if(!Array.isArray(d.claimed)||new Set(d.claimed).size!==d.claimed.length||d.claimed.some(n=>!(d.day===3?['d-open','d-serve','d-clean','d-team']:['d-serve','d-types','d-clean','d-shift']).includes(n))||!Array.isArray(d.history)||d.history.length>30||d.history.some(h=>!int(h.day)||h.day<3||h.day>=d.day||!int(h.parties)||!isMoney(h.revenue)))return false;
+ const parties=new Set();
+ for(const [i,t]of d.tables.entries()){
+  if(typeof t.greeted!=='boolean'||t.id!==i||!['empty','seating','waiting','eating','leaving','dirty'].includes(t.state)||!GUEST_TYPES[t.kind]||!bag(t.order)||!bag(t.delivered)||FOODS.some(k=>t.order[k]>4||t.delivered[k]>t.order[k])||!validBasis(t.priceBasis)||!isMoney(t.base)||!isMoney(t.coins)||typeof t.settled!=='boolean'||![t.waitLeft,t.waitMax,t.eatLeft,t.clean,t.servedIn].every(finite)||t.waitLeft>t.waitMax||t.clean>1.5)return false;
+  const low=FOODS.reduce((n,k)=>n+t.delivered[k]*priceFor(k,t.priceBasis),0);
+  if(t.base<low||t.base>low+t.delivered.tea*(t.priceBasis==='legacy'?6000:3000))return false;
+  if(t.state==='empty'){if(t.party!==null||t.settled||total(t.order)||total(t.delivered)||t.base)return false;}
+  else{
+   if(!int(t.party)||!t.party||t.party>=d.nextParty||parties.has(t.party))return false;parties.add(t.party);
+   if(FOODS.some(k=>t.order[k]!==GUEST_TYPES[t.kind].order()[k]))return false;
+   if(['leaving','dirty'].includes(t.state)!==t.settled)return false;
+   if(t.state==='eating'&&total(needs(t)))return false;
+  }
+  if(i===2&&!s.upgrades.thirdTable&&t.state!=='empty')return false;
+ }
+ if(new Set(d.guests.map(g=>g.id)).size!==d.guests.length)return false;
+ for(const g of d.guests){
+  if(![g.x,g.y,g.step].every(Number.isFinite)||!int(g.party)||!g.party||g.party>=d.nextParty||!int(g.id)||!int(g.seat)||g.seat>=GUEST_TYPES[g.kind]?.people||!GUEST_TYPES[g.kind]||!['queue','enter','wait','eat','leave'].includes(g.phase)||g.table!==null&&!id(g.table)||blocked(g.x,g.y,12,s))return false;
+  if(g.phase==='queue'){if(!d.waiting||g.party!==d.waiting.id||g.table!==null)return false;}
+  else if(g.phase!=='leave'){
+   const t=d.tables[g.table];if(!t||t.party!==g.party||t.kind!==g.kind||!['seating','waiting','eating'].includes(t.state))return false;
+   if(g.phase==='eat'&&t.state!=='eating')return false;
+  }
+ }
+ for(const t of d.tables.filter(t=>['seating','waiting','eating'].includes(t.state))){const guests=d.guests.filter(g=>g.party===t.party);if(guests.length!==GUEST_TYPES[t.kind].people||new Set(guests.map(g=>g.seat)).size!==guests.length)return false;}
+ if(d.waiting&&(!int(d.waiting.id)||d.waiting.id>=d.nextParty||!GUEST_TYPES[d.waiting.kind]||!finite(d.waiting.left)||d.waiting.left>16||!bag(d.waiting.order)||FOODS.some(k=>d.waiting.order[k]!==GUEST_TYPES[d.waiting.kind].order()[k])||d.guests.filter(g=>g.party===d.waiting.id&&g.phase==='queue').length!==GUEST_TYPES[d.waiting.kind].people))return false;
+ const e=d.event;if(!e||typeof e.festival!=='boolean'||typeof e.active!=='boolean'||![e.left,e.cooldown].every(finite)||![e.serial,e.start,e.best,e.last,e.target].every(int)||e.left>110||e.start>d.stats.parties||!GUEST_TYPES[e.kind]||e.active&&!s.upgrades.dining)return false;
+ if(d.waiter&&(!s.upgrades.waiter||![d.waiter.x,d.waiter.y,d.waiter.step,d.waiter.action,d.waiter.face].every(Number.isFinite)||!d.waiter.bag||!['raw','banh','special','tea','rawPho','pho','ice'].every(k=>int(d.waiter.bag[k]))||blocked(d.waiter.x,d.waiter.y,12,s)))return false;
+ if(s.upgrades.waiter&&!d.waiter||s.upgrades.dining&&(!s.upgrades.pho||s.day<3)||['thirdTable','waiter','canopy'].some(k=>s.upgrades[k]&&!s.upgrades.dining)||s.upgrades.serviceCart&&!s.upgrades.waiter||s.day>=3&&d.day!==s.day)return false;
+ return true;
+}
+
+export function startFestival(s,emit=()=>{}){if(!festivalUnlocked(s)||s.dining.event.active||s.dining.event.cooldown||!s.upgrades.dining)return false;const e=s.dining.event;Object.assign(e,{festival:true,active:true,kind:'friends',left:110,start:s.dining.stats.parties,target:4});s.dining.spawnTimer=0;emit('dining',{text:'Ngày hội phố Việt · Đón bốn bàn bạn bè, cùng giữ món nóng!'});return true;}
+
+export const GUEST_STORIES={regular:'Chú Ba: Bát phở nóng làm tôi nhớ buổi chợ sớm quê nhà.',hurry:'Chị Lan: Cho tôi kịp chuyến xe nhé, mai lại ghé quán!',friends:'Nhóm bạn: Trà tắc, bánh nóng và chuyện cũ — đúng vị phố mình.'};

@@ -1,4 +1,6 @@
+import{restaurantId}from'./restaurants.js';
 import {formatVnd} from './currency.js';
+export const lunchSold=s=>s.local.lunch.legacy?s.sold-s.day2.event.startSold:s.local.sold.pho-s.local.lunch.start;
 // Day 2 content and economy. Pure data/functions, reusable by UI and simulation.
 export const NEW_UPGRADES = [
   {id:'pho',cost:600000,icon:'🍜',name:'Mở sân phở bò',description:'Nối rộng sân quán · Kho, nồi nấu và quầy phở mới.',day:2},
@@ -9,19 +11,19 @@ export const NEW_UPGRADES = [
 export const QUESTS = [
   {id:'phoLovers',icon:'🍜',title:'Hương phở đầu phố',description:'Phục vụ 12 tô phở bò nóng.',reward:180000,max:12,value:s=>s.stats.soldPho},
   {id:'teamwork',icon:'⚙',title:'Quán chạy nhịp nhàng',description:'Đầu tư 2 cải tiến: nồi đôi, An hoặc máy pha trà.',reward:180000,max:2,value:s=>['phoBoiler','worker2','teaAuto'].filter(k=>s.upgrades[k]).length},
-  {id:'lunch',icon:'☀',title:'Bữa trưa đắt khách',description:'Phục vụ 14 món trong một đợt bữa trưa 60 giây.',reward:240000,max:14,value:s=>Math.min(14,Math.max(s.day2.event.best,s.day2.event.active?s.sold-s.day2.event.startSold:0))},
+  {id:'lunch',icon:'☀',title:'Bữa trưa đắt khách',description:'Phục vụ 14 món trong một đợt bữa trưa 60 giây.',reward:240000,max:14,value:s=>Math.min(14,Math.max(s.day2.event.best,s.day2.event.active?lunchSold(s):0))},
 ];
 export function dayTwo(elapsed=0,revenue=0){return {startedAt:elapsed,revenueStart:revenue,claimed:[],completed:false,summarySeen:false,event:{active:false,left:0,cooldown:0,startSold:0,best:0,attempts:0,lastServed:0}};}
 export function startLunch(s,emit=()=>{}){
   const e=s.day2.event;
-  if(s.day<2||!s.upgrades.pho||e.active||e.cooldown>0)return false;
-  e.active=true;e.left=60;e.startSold=s.sold;e.attempts++;s.spawnTimer=Math.min(s.spawnTimer,.2);
+  if(restaurantId(s)!=='pho'||s.day<2||!s.upgrades.pho||e.active||e.cooldown>0)return false;
+  e.active=true;e.left=60;e.startSold=s.sold;s.local.lunch={legacy:false,start:s.local.sold.pho};e.attempts++;s.local.phoSpawn=Math.min(s.local.phoSpawn,.2);
   emit('rush',{text:'Bữa trưa bắt đầu! Khách gọi phở nhiều hơn.'});return true;
 }
 export function updateDayTwo(s,dt,emit){
   if(s.day<2)return;
   const e=s.day2.event;e.cooldown=Math.max(0,e.cooldown-dt);
-  if(e.active){e.left=Math.max(0,e.left-dt);if(e.left===0){e.active=false;e.lastServed=s.sold-e.startSold;e.best=Math.max(e.best,e.lastServed);e.cooldown=35;emit('lunchEnd',{success:e.lastServed>=14,text:e.lastServed>=14?`Đón khách thành công! ${e.lastServed} món trong một phút.`:`Đã phục vụ ${e.lastServed}/14 món. Chuẩn bị rồi thử lại nhé!`});}}
+  if(e.active){e.left=Math.max(0,e.left-dt);if(e.left===0){e.active=false;e.lastServed=lunchSold(s);e.best=Math.max(e.best,e.lastServed);e.cooldown=35;emit('lunchEnd',{success:e.lastServed>=14,text:e.lastServed>=14?`Đón khách thành công! ${e.lastServed} món trong một phút.`:`Đã phục vụ ${e.lastServed}/14 món. Chuẩn bị rồi thử lại nhé!`});}}
 }
 export function claimQuest(s,id,emit=()=>{}){
   const q=QUESTS.find(q=>q.id===id);
